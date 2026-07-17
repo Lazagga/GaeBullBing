@@ -1,0 +1,5 @@
+{
+  "name": "GaeBullBing.Presentation",
+  "rootNamespace": "GaeBullBing.Presentation",
+  "references": ["GaeBullBing.Core"]
+}

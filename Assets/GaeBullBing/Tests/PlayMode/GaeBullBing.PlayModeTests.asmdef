@@ -1,0 +1,6 @@
+{
+  "name": "GaeBullBing.PlayModeTests",
+  "rootNamespace": "GaeBullBing.Tests.PlayMode",
+  "references": ["GaeBullBing.Core", "GaeBullBing.Presentation"],
+  "optionalUnityReferences": ["TestAssemblies"]
+}
