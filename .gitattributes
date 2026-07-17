@@ -1,0 +1,19 @@
+* text=auto eol=lf
+
+*.cs text eol=lf
+*.asmdef text eol=lf
+*.json text eol=lf
+*.meta text eol=lf
+*.unity text eol=lf
+*.asset text eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.psd binary
+*.wav binary
+*.mp3 binary
+*.ogg binary
+*.fbx binary
+*.pptx binary
