@@ -58,7 +58,10 @@ namespace GaeBullBing.Core.Monsters
         public void AddKills(DifficultyState state, int count)
         {
             state.KillCount += Math.Max(0, count);
-            state.Level = GetPatternIndex(state.KillCount) + 1;
+            var nextLevel = Math.Min(patterns.Length, GetPatternIndex(state.KillCount) + 1);
+            if (state.Level != nextLevel)
+                state.PatternIndex = 0;
+            state.Level = nextLevel;
         }
 
         public string GetNextMonsterId(DifficultyState state)

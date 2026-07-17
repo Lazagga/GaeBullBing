@@ -66,10 +66,22 @@ namespace GaeBullBing.Core.Monsters
                 var cannotMove = monster.FrozenMovesRemaining > 0 || monster.StunnedMovesRemaining > 0;
                 if (monster.FrozenMovesRemaining > 0) { monster.FrozenMovesRemaining--; monster.FreezeImmuneLine = currentLine; }
                 if (monster.StunnedMovesRemaining > 0) monster.StunnedMovesRemaining--;
-                var onIce = state.Board.Tiles.Count > monster.CurrentTileIndex && state.Board.Tiles[monster.CurrentTileIndex].IceTurnsRemaining > 0;
-                var moveDistance = onIce ? 1 : monster.MoveDistance;
-                var distance = cannotMove ? 0 : Math.Min(moveDistance, remainingToBase);
                 var startTileIndex = monster.CurrentTileIndex;
+                monster.TouchedFireThisMove = false;
+                ApplyFireTile(state, monster, monster.CurrentTileIndex);
+
+                var onIce = HasIce(state, monster.CurrentTileIndex);
+                var plannedDistance = cannotMove ? 0 : Math.Min(onIce ? 1 : monster.MoveDistance, remainingToBase);
+                var distance = 0;
+                while (distance < plannedDistance)
+                {
+                    distance++;
+                    var enteredTileIndex = (startTileIndex + distance) % BoardState.DefaultTileCount;
+                    ApplyFireTile(state, monster, enteredTileIndex);
+                    if (HasIce(state, enteredTileIndex) && distance < plannedDistance)
+                        plannedDistance = Math.Min(plannedDistance, distance + 1);
+                }
+
                 monster.DistanceTravelled += distance;
                 monster.CurrentTileIndex = (monster.CurrentTileIndex + distance) % BoardState.DefaultTileCount;
                 var hasReachedBase = monster.DistanceTravelled >= BoardState.DefaultTileCount;
@@ -83,6 +95,19 @@ namespace GaeBullBing.Core.Monsters
                 state.Monsters.Remove(monster);
 
             return results;
+        }
+
+        private static bool HasIce(GameState state, int tileIndex) =>
+            tileIndex >= 0 && tileIndex < state.Board.Tiles.Count &&
+            state.Board.Tiles[tileIndex].IceTurnsRemaining > 0;
+
+        private static void ApplyFireTile(GameState state, MonsterState monster, int tileIndex)
+        {
+            if (tileIndex < 0 || tileIndex >= state.Board.Tiles.Count ||
+                state.Board.Tiles[tileIndex].FireTurnsRemaining <= 0)
+                return;
+            monster.BurnStacks++;
+            monster.TouchedFireThisMove = true;
         }
 
         public static int GetLine(int tileIndex)

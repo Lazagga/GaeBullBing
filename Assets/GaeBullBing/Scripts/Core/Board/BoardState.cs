@@ -13,6 +13,8 @@ namespace GaeBullBing.Core.Board
 
     public sealed class TileState
     {
+        public const int OneTurnEffectDuration = 2;
+
         public int Index { get; set; }
         public string DefinitionId { get; set; } = string.Empty;
         public string BuildTowerDefinitionId { get; set; } = string.Empty;

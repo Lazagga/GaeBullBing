@@ -1,6 +1,7 @@
 using GaeBullBing.Presentation.Game;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.InputSystem;
 
 namespace GaeBullBing.Presentation.UI
 {
@@ -10,6 +11,7 @@ namespace GaeBullBing.Presentation.UI
         [SerializeField] private Text secondDiceText;
         [SerializeField] private Text totalText;
         [SerializeField] private Button rollButton;
+        [SerializeField] private DeveloperConsoleView developerConsole;
 
         private GameController controller;
 
@@ -20,6 +22,16 @@ namespace GaeBullBing.Presentation.UI
             rollButton.onClick.AddListener(OnRollClicked);
             SetResults(0, 0);
             BeginPlayerTurn();
+        }
+
+        private void Update()
+        {
+            var keyboard = Keyboard.current;
+            if (keyboard == null || developerConsole != null && developerConsole.IsOpen)
+                return;
+            if ((keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame) &&
+                rollButton.gameObject.activeInHierarchy && rollButton.interactable)
+                OnRollClicked();
         }
 
         public void SetRolling(bool rolling)

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using GaeBullBing.Core.Data;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.InputSystem;
 
 namespace GaeBullBing.Presentation.UI
 {
@@ -15,6 +16,7 @@ namespace GaeBullBing.Presentation.UI
         [SerializeField] private Button[] choiceButtons = Array.Empty<Button>();
         [SerializeField] private Vector2 screenOffset = new(0f, 80f);
         [SerializeField, Min(20f)] private float choiceRadius = 90f;
+        [SerializeField] private DeveloperConsoleView developerConsole;
 
         private RectTransform canvasRect;
         private Transform worldTarget;
@@ -34,6 +36,43 @@ namespace GaeBullBing.Presentation.UI
             var screenPoint = worldCamera.WorldToScreenPoint(worldTarget.position);
             RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, screenPoint, null, out var localPoint);
             menuRoot.anchoredPosition = localPoint + screenOffset;
+        }
+
+        private void Update()
+        {
+            if (!menuRoot.gameObject.activeInHierarchy ||
+                developerConsole != null && developerConsole.IsOpen)
+                return;
+
+            var keyboard = Keyboard.current;
+            if (keyboard == null)
+                return;
+
+            if (primaryButton.gameObject.activeInHierarchy && primaryButton.interactable &&
+                (keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame))
+            {
+                primaryButton.onClick.Invoke();
+                return;
+            }
+
+            if (!choicesRoot.gameObject.activeInHierarchy)
+                return;
+
+            if (keyboard.digit1Key.wasPressedThisFrame || keyboard.numpad1Key.wasPressedThisFrame)
+                InvokeChoice(0);
+            else if (keyboard.digit2Key.wasPressedThisFrame || keyboard.numpad2Key.wasPressedThisFrame)
+                InvokeChoice(1);
+            else if (keyboard.digit3Key.wasPressedThisFrame || keyboard.numpad3Key.wasPressedThisFrame)
+                InvokeChoice(2);
+        }
+
+        private void InvokeChoice(int index)
+        {
+            if (index < 0 || index >= choiceButtons.Length)
+                return;
+            var button = choiceButtons[index];
+            if (button != null && button.gameObject.activeInHierarchy && button.interactable)
+                button.onClick.Invoke();
         }
 
         public void ShowPrimary(

@@ -2,7 +2,7 @@
   "monster_database": [
     {
       "id": "MON_001",
-      "name": "탱커",
+      "name": "곰",
       "tier": "Normal",
       "appearance_wave": 1,
       "base_stats": {
@@ -18,7 +18,7 @@
     },
         {
       "id": "MON_002",
-      "name": "일반",
+      "name": "여우",
       "tier": "Normal",
       "appearance_wave": 1,
       "base_stats": {
@@ -34,7 +34,7 @@
     },
         {
       "id": "MON_003",
-      "name": "빠른거",
+      "name": "다람쥐",
       "tier": "Normal",
       "appearance_wave": 1,
       "base_stats": {

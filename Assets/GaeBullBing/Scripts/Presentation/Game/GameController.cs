@@ -28,10 +28,12 @@ namespace GaeBullBing.Presentation.Game
         [SerializeField] private MonsterDefinition defaultMonster;
         [SerializeField] private BoardDefinition boardDefinition;
         [SerializeField] private MonsterDefinition[] monsterDefinitions;
+        [SerializeField] private TextAsset difficultyPatternJson;
         [SerializeField] private DifficultyPatternData[] difficultyPatterns;
         [SerializeField] private BoardCameraController cameraController;
         [SerializeField] private RadialActionMenu radialMenu;
         [SerializeField] private CornerActionMenu cornerActionMenu;
+        [SerializeField] private DiceTuningView diceTuningView;
         [SerializeField] private TowerPresenter towerPresenter;
         [SerializeField] private TowerDefinition[] towerDefinitions;
         [SerializeField] private TowerUpgradeDefinition[] towerUpgradeDefinitions;
@@ -44,6 +46,8 @@ namespace GaeBullBing.Presentation.Game
         private Dice3DPresenter dice3DPresenter;
         private string nextMonsterOverrideId;
         private BoardTileSelectionView tileSelectionView;
+        private bool pendingDiceTuning;
+        private bool diceTuningComplete;
 
         public GameState State { get; private set; }
         public GameSession Session { get; private set; }
@@ -61,6 +65,157 @@ namespace GaeBullBing.Presentation.Game
                 if (definition != null && (NormalizeConsoleToken(definition.Id) == normalizedQuery || NormalizeConsoleToken(definition.DisplayName) == normalizedQuery))
                 { nextMonsterOverrideId = definition.Id; message = $"다음 몬스터: {definition.DisplayName} ({definition.Id})"; return true; }
             message = $"몬스터를 찾을 수 없습니다: {query}"; return false;
+        }
+
+        public bool SpawnMonsterFromConsole(string query, int tileIndex, out string message)
+        {
+            if (tileIndex < 0 || tileIndex >= State.Board.TileCount)
+            {
+                message = $"타일 번호는 0~{State.Board.TileCount - 1} 범위여야 합니다.";
+                return false;
+            }
+
+            var normalizedQuery = NormalizeConsoleToken(query);
+            MonsterDefinition definition = null;
+            foreach (var candidate in monsterDefinitions)
+                if (candidate != null && (NormalizeConsoleToken(candidate.Id) == normalizedQuery ||
+                    NormalizeConsoleToken(candidate.DisplayName) == normalizedQuery))
+                {
+                    definition = candidate;
+                    break;
+                }
+
+            if (definition == null)
+            {
+                message = $"몬스터를 찾을 수 없습니다: {query}";
+                return false;
+            }
+
+            var previousPhase = State.CurrentPhase;
+            var monster = Session.SpawnMonster(definition, difficultyService.GetHealthMultiplier(State.Difficulty));
+            monster.CurrentTileIndex = tileIndex;
+            monster.DistanceTravelled = tileIndex;
+            State.CurrentPhase = previousPhase;
+            monsterPresenter.Spawn(monster);
+            monsterPresenter.RefreshLayout();
+            message = $"{definition.DisplayName} ({definition.Id})을 {tileIndex}번 타일에 소환했습니다.";
+            return true;
+        }
+
+        public bool BuildTowerFromConsole(int tileIndex, int tier, out string message)
+        {
+            if (tileIndex < 0 || tileIndex >= State.Board.TileCount)
+            {
+                message = $"타일 번호는 0~{State.Board.TileCount - 1} 범위여야 합니다.";
+                return false;
+            }
+
+            if (tier < 1 || tier > 3)
+            {
+                message = "타워 티어는 1~3 범위여야 합니다.";
+                return false;
+            }
+
+            var tile = State.Board.Tiles[tileIndex];
+            if (!tile.CanBuildTower)
+            {
+                message = $"{tileIndex}번 타일에는 지정된 타워가 없습니다.";
+                return false;
+            }
+
+            var definition = FindTowerDefinition(tile.BuildTowerDefinitionId);
+            if (definition == null)
+            {
+                message = $"타워 데이터를 찾을 수 없습니다: {tile.BuildTowerDefinitionId}";
+                return false;
+            }
+
+            var upgrades = new List<TowerUpgradeDefinition>();
+            for (var upgradeTier = 2; upgradeTier <= tier; upgradeTier++)
+            {
+                var upgrade = FindConsoleUpgrade(definition.Element, upgradeTier);
+                if (upgrade == null)
+                {
+                    message = $"{definition.Element} {upgradeTier}티어의 0번 강화를 찾을 수 없습니다.";
+                    return false;
+                }
+                upgrades.Add(upgrade);
+            }
+
+            var previousPhase = State.CurrentPhase;
+            try
+            {
+                tile.Tower = null;
+                Session.BuildTower(tileIndex, definition.Id);
+                foreach (var upgrade in upgrades)
+                    Session.UpgradeTower(tileIndex, upgrade);
+                towerPresenter.SetTower(tileIndex, definition, tier);
+                message = $"{tileIndex}번 타일에 {definition.DisplayName} {tier}티어 설치 완료";
+                return true;
+            }
+            finally
+            {
+                State.CurrentPhase = previousPhase;
+            }
+        }
+
+        public bool SetTileEffectFromConsole(int tileIndex, string effectName, out string message)
+        {
+            if (tileIndex < 0 || tileIndex >= State.Board.TileCount)
+            {
+                message = $"타일 번호는 0~{State.Board.TileCount - 1} 범위여야 합니다.";
+                return false;
+            }
+
+            var tile = State.Board.Tiles[tileIndex];
+            IReadOnlyList<TowerAttackResult> results;
+            var exploded = false;
+            if (effectName.Equals("frozen", System.StringComparison.OrdinalIgnoreCase))
+            {
+                exploded = tile.FireTurnsRemaining > 0;
+                results = Session.PlaceIceField(tileIndex);
+                message = exploded
+                    ? $"{tileIndex}번 타일의 불/얼음 장판이 폭발했습니다. 피해: {15 + State.Difficulty.Level * 14}"
+                    : $"{tileIndex}번 타일에 얼음 장판을 1턴 동안 설치했습니다.";
+            }
+            else if (effectName.Equals("ignite", System.StringComparison.OrdinalIgnoreCase))
+            {
+                exploded = tile.IceTurnsRemaining > 0;
+                results = Session.PlaceFireField(tileIndex);
+                message = exploded
+                    ? $"{tileIndex}번 타일의 불/얼음 장판이 폭발했습니다. 피해: {15 + State.Difficulty.Level * 14}"
+                    : $"{tileIndex}번 타일에 불 장판을 1턴 동안 설치했습니다.";
+            }
+            else
+            {
+                message = "장판 종류는 frozen 또는 ignite여야 합니다.";
+                return false;
+            }
+
+            boardView.RefreshTileEffects(State.Board);
+            if (results.Count > 0) StartCoroutine(ApplyConsoleEffectResults(results));
+            return true;
+        }
+
+        private IEnumerator ApplyConsoleEffectResults(IReadOnlyList<TowerAttackResult> results)
+        {
+            var killedCount = 0;
+            foreach (var result in results)
+            {
+                yield return monsterPresenter.ApplyAttack(result);
+                if (result.Killed) killedCount++;
+            }
+            difficultyService.AddKills(State.Difficulty, killedCount);
+            monsterPresenter.RefreshLayout();
+        }
+
+        private TowerUpgradeDefinition FindConsoleUpgrade(TowerElement element, int tier)
+        {
+            foreach (var upgrade in towerUpgradeDefinitions)
+                if (upgrade != null && upgrade.Element == element && upgrade.Tier == tier &&
+                    upgrade.Id.EndsWith("_00", System.StringComparison.OrdinalIgnoreCase))
+                    return upgrade;
+            return null;
         }
 
         private static string NormalizeConsoleToken(string value)
@@ -93,6 +248,7 @@ namespace GaeBullBing.Presentation.Game
                 monsterDefinitions = monsterPresenter != null && monsterPresenter.MonsterDefinitions != null && monsterPresenter.MonsterDefinitions.Length > 0
                     ? monsterPresenter.MonsterDefinitions
                     : new[] { defaultMonster };
+            LoadDifficultyPatternsFromJson();
             if (difficultyPatterns == null || difficultyPatterns.Length == 0)
                 difficultyPatterns = new[] { new DifficultyPatternData { MonsterIds = new[] { defaultMonster.Id } } };
             monsterDatabase = new MonsterDatabase(monsterDefinitions);
@@ -105,6 +261,84 @@ namespace GaeBullBing.Presentation.Game
             tileSelectionView = boardView.GetComponent<BoardTileSelectionView>();
             if (tileSelectionView == null) tileSelectionView = boardView.gameObject.AddComponent<BoardTileSelectionView>();
             tileSelectionView.Initialize(boardView);
+        }
+
+        private void LoadDifficultyPatternsFromJson()
+        {
+            if (difficultyPatternJson == null) return;
+            var source = JsonUtility.FromJson<DifficultyPatternDatabaseJson>(difficultyPatternJson.text);
+            if (source?.wave_patterns == null || source.wave_patterns.Length == 0)
+            {
+                Debug.LogError($"난이도 패턴 배열을 읽을 수 없습니다: {difficultyPatternJson.name}");
+                return;
+            }
+
+            if (source.wavedata == null || source.wavedata.Length == 0)
+            {
+                Debug.LogError($"공통 난이도 설정인 wavedata를 읽을 수 없습니다: {difficultyPatternJson.name}");
+                return;
+            }
+
+            var killsPerLevel = Mathf.Max(1, source.wavedata[0].required_kills);
+            var healthMultiplierPerLevel = source.wavedata[0].multiplier > 0f
+                ? source.wavedata[0].multiplier
+                : 1f;
+
+            System.Array.Sort(source.wave_patterns, (left, right) => left.level.CompareTo(right.level));
+            var knownMonsterIds = new HashSet<string>();
+            foreach (var monster in monsterDefinitions)
+                if (monster != null) knownMonsterIds.Add(monster.Id);
+
+            var converted = new List<DifficultyPatternData>(source.wave_patterns.Length);
+            var cumulativeRequiredKills = 0;
+            foreach (var pattern in source.wave_patterns)
+            {
+                if (pattern == null || pattern.spawn_pattern == null || pattern.spawn_pattern.Length == 0)
+                {
+                    Debug.LogError($"난이도 {pattern?.level ?? 0}의 spawn_pattern이 비어 있습니다.");
+                    continue;
+                }
+
+                var valid = true;
+                foreach (var monsterId in pattern.spawn_pattern)
+                    if (!knownMonsterIds.Contains(monsterId))
+                    {
+                        Debug.LogError($"난이도 {pattern.level}가 존재하지 않는 몬스터를 참조합니다: {monsterId}");
+                        valid = false;
+                    }
+                if (!valid) continue;
+
+                converted.Add(new DifficultyPatternData
+                {
+                    RequiredKills = cumulativeRequiredKills,
+                    HealthMultiplier = Mathf.Pow(healthMultiplierPerLevel, converted.Count),
+                    MonsterIds = pattern.spawn_pattern
+                });
+                cumulativeRequiredKills += killsPerLevel;
+            }
+
+            if (converted.Count > 0) difficultyPatterns = converted.ToArray();
+        }
+
+        [System.Serializable]
+        private sealed class DifficultyPatternDatabaseJson
+        {
+            public DifficultyCommonJson[] wavedata;
+            public DifficultyPatternJson[] wave_patterns;
+        }
+
+        [System.Serializable]
+        private sealed class DifficultyCommonJson
+        {
+            public int required_kills;
+            public float multiplier;
+        }
+
+        [System.Serializable]
+        private sealed class DifficultyPatternJson
+        {
+            public int level;
+            public string[] spawn_pattern;
         }
 
         private void Start()
@@ -128,6 +362,7 @@ namespace GaeBullBing.Presentation.Game
 
             var startTileIndex = State.Player.CurrentTileIndex;
             var distance = Session.RollDiceAndMovePlayer();
+            pendingDiceTuning |= startTileIndex + distance >= State.Board.TileCount;
             diceHud.SetResults(State.LastDiceResults[0], State.LastDiceResults[1]);
             yield return dice3DPresenter.Roll(State.LastDiceResults[0], State.LastDiceResults[1]);
             yield return cameraController.FocusOn(playerView);
@@ -197,6 +432,8 @@ namespace GaeBullBing.Presentation.Game
         {
             var start = State.Player.CurrentTileIndex;
             var distance = (tileIndex - start + State.Board.TileCount) % State.Board.TileCount;
+            if (start == 0 || distance > 0 && start + distance >= State.Board.TileCount)
+                pendingDiceTuning = true;
             var focusRoutine = StartCoroutine(cameraController.FocusOn(playerView));
             yield return playerView.MoveSteps(start, distance);
             yield return focusRoutine;
@@ -231,6 +468,12 @@ namespace GaeBullBing.Presentation.Game
                 return;
             }
 
+            if (choices.Count == 1)
+            {
+                SelectTower(choices[0]);
+                return;
+            }
+
             radialMenu.ShowChoices(choices, SelectTower);
         }
 
@@ -251,7 +494,12 @@ namespace GaeBullBing.Presentation.Game
         public void SelectUpgrade(TowerUpgradeDefinition upgrade)
         {
             if (State.CurrentPhase != TurnPhase.TowerSelection || upgrade == null) return;
-            Session.UpgradeTower(State.Player.CurrentTileIndex, upgrade);
+            var tileIndex = State.Player.CurrentTileIndex;
+            Session.UpgradeTower(tileIndex, upgrade);
+            var tile = State.Board.Tiles[tileIndex];
+            var definition = FindTowerDefinition(tile.Tower.DefinitionId);
+            if (definition != null)
+                towerPresenter.SetTower(tileIndex, definition, tile.Tower.UpgradeTier);
             radialMenu.Hide(); StartCoroutine(CompleteTileActionRoutine());
         }
 
@@ -300,7 +548,23 @@ namespace GaeBullBing.Presentation.Game
         {
             State.CurrentPhase = TurnPhase.CameraOverview;
             yield return cameraController.ReturnToOverview();
+            if (pendingDiceTuning && diceTuningView != null)
+            {
+                pendingDiceTuning = false;
+                diceTuningComplete = false;
+                State.CurrentPhase = TurnPhase.DiceTuning;
+                diceTuningView.Show(State.Dice, ApplyDiceTuning);
+                yield return new WaitUntil(() => diceTuningComplete);
+            }
             yield return ResolveEnemyTurnRoutine();
+        }
+
+        private bool ApplyDiceTuning(int diceIndex, int faceValue, int delta)
+        {
+            if (!Session.TryShiftDiceWeight(diceIndex, faceValue, delta))
+                return false;
+            diceTuningComplete = true;
+            return true;
         }
 
         private IEnumerator ResolveEnemyTurnRoutine()
@@ -329,9 +593,11 @@ namespace GaeBullBing.Presentation.Game
             }
 
             var attackResults = Session.ResolveTowerCombat(towerDefinitions, towerUpgradeDefinitions);
+            boardView.RefreshTileEffects(State.Board);
             foreach (var attackResult in attackResults)
                 yield return monsterPresenter.ApplyAttack(attackResult);
             var statusResults = Session.ResolveMonsterTurnEndEffects();
+            boardView.RefreshTileEffects(State.Board);
             foreach (var statusResult in statusResults)
                 yield return monsterPresenter.ApplyAttack(statusResult);
             var killedCount = 0;

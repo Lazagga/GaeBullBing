@@ -10,6 +10,7 @@ namespace GaeBullBing.Core.Monsters
         public int MoveDistance { get; set; }
         public int DistanceTravelled { get; set; }
         public int BurnStacks { get; set; }
+        public bool TouchedFireThisMove { get; set; }
         public bool Shocked { get; set; }
         public int FrozenMovesRemaining { get; set; }
         public int FreezeImmuneLine { get; set; } = -1;

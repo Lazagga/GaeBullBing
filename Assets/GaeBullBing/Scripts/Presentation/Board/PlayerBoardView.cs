@@ -7,7 +7,7 @@ namespace GaeBullBing.Presentation.Board
     {
         [SerializeField, Min(0.01f)] private float stepDuration = 0.14f;
         [SerializeField, Min(0f)] private float hopHeight = 0.18f;
-        [SerializeField] private Vector3 positionOffset = new(0f, 0.28f, 0f);
+        [SerializeField] private Vector3 positionOffset = Vector3.zero;
 
         private BoardTilemapView boardView;
         private SpriteRenderer visualRenderer;
@@ -28,7 +28,7 @@ namespace GaeBullBing.Presentation.Board
             var source = GetComponent<SpriteRenderer>();
             if (source == null || transform.Find("Visual") != null) return;
             var visual = new GameObject("Visual"); visual.transform.SetParent(transform, false);
-            visual.transform.localScale = new Vector3(.32f, .72f, 1f);
+            visual.transform.localScale = Vector3.one;
             var renderer = visual.AddComponent<SpriteRenderer>();
             renderer.sprite = source.sprite; renderer.color = source.color; renderer.sharedMaterial = source.sharedMaterial;
             renderer.sortingLayerID = source.sortingLayerID; renderer.sortingOrder = source.sortingOrder;
@@ -54,7 +54,7 @@ namespace GaeBullBing.Presentation.Board
 
         public void SetLayoutOffset(Vector3 offset)
         {
-            var targetOffset = offset + new Vector3(0f, .28f);
+            var targetOffset = offset;
             if (layoutRoutine != null) StopCoroutine(layoutRoutine);
             layoutRoutine = StartCoroutine(AnimateLayoutOffset(targetOffset));
         }

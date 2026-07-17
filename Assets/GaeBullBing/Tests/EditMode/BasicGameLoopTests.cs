@@ -123,6 +123,57 @@ namespace GaeBullBing.Tests.EditMode
         }
 
         [Test]
+        public void MonsterService_IceEnteredMidMoveLeavesOnlyOneRemainingStep()
+        {
+            var state = new GameState();
+            new BoardService().Initialize(state.Board);
+            state.Board.Tiles[2].IceTurnsRemaining = 1;
+            state.Monsters.Add(new GaeBullBing.Core.Monsters.MonsterState
+            {
+                InstanceId = 1, CurrentHealth = 30, CurrentTileIndex = 0, MoveDistance = 5
+            });
+
+            var result = new GaeBullBing.Core.Monsters.MonsterService().MoveAll(state)[0];
+
+            Assert.That(result.Distance, Is.EqualTo(3));
+            Assert.That(state.Monsters[0].CurrentTileIndex, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void MonsterService_RemovingIceRestoresBaseMovement()
+        {
+            var state = new GameState();
+            new BoardService().Initialize(state.Board);
+            state.Board.Tiles[0].IceTurnsRemaining = 1;
+            state.Monsters.Add(new GaeBullBing.Core.Monsters.MonsterState
+            {
+                InstanceId = 1, CurrentHealth = 30, CurrentTileIndex = 0, MoveDistance = 4
+            });
+            var service = new GaeBullBing.Core.Monsters.MonsterService();
+            Assert.That(service.MoveAll(state)[0].Distance, Is.EqualTo(1));
+
+            state.Board.Tiles[1].IceTurnsRemaining = 0;
+            Assert.That(service.MoveAll(state)[0].Distance, Is.EqualTo(4));
+        }
+
+        [Test]
+        public void MonsterService_FireCrossedMidMoveAddsBurnStack()
+        {
+            var state = new GameState();
+            new BoardService().Initialize(state.Board);
+            state.Board.Tiles[2].FireTurnsRemaining = 1;
+            state.Monsters.Add(new GaeBullBing.Core.Monsters.MonsterState
+            {
+                InstanceId = 1, CurrentHealth = 30, CurrentTileIndex = 0, MoveDistance = 5
+            });
+
+            new GaeBullBing.Core.Monsters.MonsterService().MoveAll(state);
+
+            Assert.That(state.Monsters[0].CurrentTileIndex, Is.EqualTo(5));
+            Assert.That(state.Monsters[0].BurnStacks, Is.EqualTo(1));
+        }
+
+        [Test]
         public void MonsterService_RemovesMonsterAfterFullLap()
         {
             var state = new GameState();

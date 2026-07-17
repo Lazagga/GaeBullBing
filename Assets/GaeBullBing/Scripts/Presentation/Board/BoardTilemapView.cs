@@ -8,6 +8,8 @@ namespace GaeBullBing.Presentation.Board
     public sealed class BoardTilemapView : MonoBehaviour
     {
         [SerializeField] private TileBase normalTile;
+        [SerializeField] private TileBase frozenTile;
+        [SerializeField] private TileBase igniteTile;
         [SerializeField] private bool buildOnAwake = true;
 
         private Tilemap tilemap;
@@ -28,9 +30,9 @@ namespace GaeBullBing.Presentation.Board
             var tilemapRenderer = GetComponent<TilemapRenderer>();
             if (tilemapRenderer == null) return;
 
-            // Draw the back/top cells first so the lower/front cells overlap them.
+            tilemapRenderer.enabled = true;
             tilemapRenderer.mode = TilemapRenderer.Mode.Individual;
-            tilemapRenderer.sortOrder = TilemapRenderer.SortOrder.TopLeft;
+            tilemapRenderer.sortOrder = TilemapRenderer.SortOrder.TopRight;
         }
 
         [ContextMenu("Rebuild Board")]
@@ -45,6 +47,28 @@ namespace GaeBullBing.Presentation.Board
             Tilemap.ClearAllTiles();
             for (var index = 0; index < BoardLayout.Cells.Count; index++)
                 Tilemap.SetTile(GetCellPosition(index), normalTile);
+        }
+
+        public void RefreshTileEffects(BoardState board)
+        {
+            if (board == null) return;
+            var count = Mathf.Min(board.TileCount, BoardLayout.Cells.Count);
+            for (var index = 0; index < count; index++)
+            {
+                var state = board.Tiles[index];
+                var tile = state.FireTurnsRemaining > 0 && igniteTile != null
+                    ? igniteTile
+                    : state.IceTurnsRemaining > 0 && frozenTile != null
+                        ? frozenTile
+                        : normalTile;
+                Tilemap.SetTile(GetCellPosition(index), tile);
+            }
+
+            Tilemap.RefreshAllTiles();
+            ConfigureSorting();
+            var tilemapRenderer = GetComponent<TilemapRenderer>();
+            tilemapRenderer.enabled = false;
+            tilemapRenderer.enabled = true;
         }
 
         public Vector3Int GetCellPosition(int tileIndex)

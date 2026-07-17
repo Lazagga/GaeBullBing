@@ -7,20 +7,33 @@ namespace GaeBullBing.Presentation.Camera
     [RequireComponent(typeof(UnityEngine.Camera))]
     public sealed class BoardCameraController : MonoBehaviour
     {
+        private const float DefaultOverviewSize = 4.7f;
+
         [SerializeField, Min(0.1f)] private float focusSize = 2.8f;
+        [SerializeField, Min(0.1f)] private float overviewSize = 4.7f;
         [SerializeField, Min(0.01f)] private float transitionDuration = 0.45f;
         [SerializeField, Min(0.01f)] private float followSpeed = 8f;
 
         private UnityEngine.Camera controlledCamera;
         private Vector3 overviewPosition;
-        private float overviewSize;
         private PlayerBoardView followTarget;
 
         private void Awake()
         {
+            ValidateSizes();
             controlledCamera = GetComponent<UnityEngine.Camera>();
             overviewPosition = transform.position;
-            overviewSize = controlledCamera.orthographicSize;
+            controlledCamera.orthographicSize = overviewSize;
+        }
+
+        private void OnValidate() => ValidateSizes();
+
+        private void ValidateSizes()
+        {
+            if (!float.IsFinite(overviewSize) || overviewSize < 0.1f)
+                overviewSize = DefaultOverviewSize;
+            if (!float.IsFinite(focusSize) || focusSize < 0.1f)
+                focusSize = 2.8f;
         }
 
         private void LateUpdate()
@@ -50,6 +63,9 @@ namespace GaeBullBing.Presentation.Camera
 
         private IEnumerator TransitionTo(Vector3 targetPosition, float targetSize)
         {
+            if (!float.IsFinite(targetSize) || targetSize < 0.1f)
+                targetSize = DefaultOverviewSize;
+
             var startPosition = transform.position;
             var startSize = controlledCamera.orthographicSize;
             var elapsed = 0f;

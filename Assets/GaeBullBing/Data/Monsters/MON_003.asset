@@ -10,10 +10,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4b7c006461b7c1c43a1de40283f0aad3, type: 3}
-  m_Name: "MON_003_\uBE60\uB978\uAC70"
+  m_Name: "MON_003_\uB2E4\uB78C\uC950"
   m_EditorClassIdentifier: GaeBullBing.Core::GaeBullBing.Core.Data.MonsterDefinition
   id: MON_003
-  displayName: "\uBE60\uB978\uAC70"
+  displayName: "\uB2E4\uB78C\uC950"
   tier: 0
   maxHp: 10
   moveDistance: 3

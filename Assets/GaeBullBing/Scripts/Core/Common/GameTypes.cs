@@ -6,6 +6,7 @@ namespace GaeBullBing.Core
         GameStart,
         PlayerTurnStart,
         DiceRoll,
+        DiceTuning,
         PlayerMove,
         TileResolve,
         TileAction,

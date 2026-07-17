@@ -9,7 +9,7 @@ namespace GaeBullBing.Presentation.Board
 
         public static int GetOrder(Vector3 worldPosition, int priority = 0)
         {
-            // On the isometric board, a lower world Y is closer to the camera.
+            // A lower world Y is closer and must be rendered later/on top.
             return BaseOrder - Mathf.RoundToInt(worldPosition.y * Precision) + priority;
         }
     }

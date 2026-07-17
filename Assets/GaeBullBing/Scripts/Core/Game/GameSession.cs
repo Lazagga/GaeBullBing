@@ -69,6 +69,24 @@ namespace GaeBullBing.Core.Game
             nextDiceResults = new[] { first, second };
         }
 
+        public bool TryShiftDiceWeight(int diceIndex, int faceValue, int delta)
+        {
+            if (diceIndex < 0 || diceIndex >= State.Dice.Count || faceValue < 1 || faceValue > 6 ||
+                (delta != -1 && delta != 1))
+                return false;
+
+            var dice = State.Dice[diceIndex];
+            var sourceIndex = Array.IndexOf(dice.Faces, faceValue);
+            var targetValue = (faceValue - 1 + delta + 6) % 6 + 1;
+            var targetIndex = Array.IndexOf(dice.Faces, targetValue);
+            if (sourceIndex < 0 || targetIndex < 0 || dice.Weights[sourceIndex] <= 0)
+                return false;
+
+            dice.SetWeight(sourceIndex, dice.Weights[sourceIndex] - 1);
+            dice.SetWeight(targetIndex, dice.Weights[targetIndex] + 1);
+            return true;
+        }
+
         public int RollDiceAndMovePlayer()
         {
             if (State.Board.TileCount == 0 || State.Dice.Count == 0)
@@ -159,6 +177,12 @@ namespace GaeBullBing.Core.Game
 
         public System.Collections.Generic.IReadOnlyList<TowerAttackResult> ResolveMonsterTurnEndEffects() =>
             towerEffectService.ResolveMonsterTurnEnd(State);
+
+        public System.Collections.Generic.IReadOnlyList<TowerAttackResult> PlaceFireField(int tileIndex) =>
+            towerEffectService.PlaceFireField(State, tileIndex);
+
+        public System.Collections.Generic.IReadOnlyList<TowerAttackResult> PlaceIceField(int tileIndex) =>
+            towerEffectService.PlaceIceField(State, tileIndex);
 
         private TowerCombatStats BuildCombatStats(
             TowerDefinition definition,
