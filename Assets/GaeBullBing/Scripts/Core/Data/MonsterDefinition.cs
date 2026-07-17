@@ -7,14 +7,14 @@ namespace GaeBullBing.Core.Data
     {
         [SerializeField] private string id = string.Empty;
         [SerializeField] private string displayName = string.Empty;
-        [SerializeField, Min(1)] private int maxHealth = 1;
+        [SerializeField] private MonsterTier tier;
+        [SerializeField, Min(1)] private int maxHp = 1;
         [SerializeField, Min(1)] private int moveDistance = 1;
-        [SerializeField, Min(0)] private int reward;
 
         public string Id => id;
         public string DisplayName => displayName;
-        public int MaxHealth => maxHealth;
+        public MonsterTier Tier => tier;
+        public int MaxHp => maxHp;
         public int MoveDistance => moveDistance;
-        public int Reward => reward;
     }
 }

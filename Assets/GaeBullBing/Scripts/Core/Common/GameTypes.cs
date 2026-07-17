@@ -20,4 +20,5 @@ namespace GaeBullBing.Core
     public enum TowerElement { None, Fire, Water, Wind, Earth }
     public enum TowerAttackType { Single, Area, Slow }
     public enum DiceUpgradeType { IncreaseWeight, DecreaseWeight, ReplaceFace, RemoveFace }
+    public enum MonsterTier { Normal, Boss }
 }

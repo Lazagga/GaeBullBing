@@ -7,6 +7,8 @@ namespace GaeBullBing.Core.Board
     {
         public const int DefaultTileCount = 36;
         public List<TileState> Tiles { get; } = new();
+
+        public int TileCount => Tiles.Count;
     }
 
     public sealed class TileState

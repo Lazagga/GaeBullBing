@@ -13,6 +13,8 @@ namespace GaeBullBing.Core.Game
         public BoardState Board { get; } = new();
         public List<MonsterState> Monsters { get; } = new();
         public List<DiceState> Dice { get; } = new();
+        public List<int> LastDiceResults { get; } = new();
+        public int LastMoveDistance { get; set; }
     }
 
     public sealed class PlayerState
