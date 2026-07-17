@@ -23,7 +23,6 @@ namespace GaeBullBing.Presentation.Towers
                 var towerObject = new GameObject($"Tower {tileIndex}");
                 towerObject.transform.SetParent(transform, false);
                 renderer = towerObject.AddComponent<SpriteRenderer>();
-                renderer.sortingOrder = 12;
                 towerViews.Add(tileIndex, renderer);
             }
 
@@ -38,6 +37,7 @@ namespace GaeBullBing.Presentation.Towers
                 : GetElementColor(definition.Element);
             renderer.transform.localScale = Vector3.one;
             renderer.transform.position = tilePosition;
+            renderer.sortingOrder = BoardDepthSorting.GetTowerOrder(tilePosition, tileIndex);
             renderer.gameObject.name = $"Tower {tileIndex} ({definition.Id})";
         }
 

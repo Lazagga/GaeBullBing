@@ -344,6 +344,7 @@ namespace GaeBullBing.Presentation.Game
         private void Start()
         {
             playerView.Initialize(boardView, State.Player.CurrentTileIndex);
+            playerView.TileEntered += monsterPresenter.SetPlayerTile;
             monsterPresenter.SetPlayerTile(State.Player.CurrentTileIndex);
             diceHud.Bind(this);
         }
@@ -367,7 +368,6 @@ namespace GaeBullBing.Presentation.Game
             yield return dice3DPresenter.Roll(State.LastDiceResults[0], State.LastDiceResults[1]);
             yield return cameraController.FocusOn(playerView);
             yield return playerView.MoveSteps(startTileIndex, distance);
-            monsterPresenter.SetPlayerTile(State.Player.CurrentTileIndex);
             BeginCurrentTileAction();
         }
 
@@ -437,7 +437,7 @@ namespace GaeBullBing.Presentation.Game
             var focusRoutine = StartCoroutine(cameraController.FocusOn(playerView));
             yield return playerView.MoveSteps(start, distance);
             yield return focusRoutine;
-            Session.TeleportPlayer(tileIndex); monsterPresenter.SetPlayerTile(tileIndex);
+            Session.TeleportPlayer(tileIndex);
             if (tileIndex == 0 || tileIndex == 18)
             {
                 yield return CompleteTileActionRoutine();

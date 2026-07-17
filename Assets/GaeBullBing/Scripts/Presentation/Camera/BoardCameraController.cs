@@ -11,18 +11,24 @@ namespace GaeBullBing.Presentation.Camera
 
         [SerializeField, Min(0.1f)] private float focusSize = 2.8f;
         [SerializeField, Min(0.1f)] private float overviewSize = 4.7f;
+        [SerializeField] private BoardTilemapView boardView;
+        [SerializeField, Min(0f)] private float horizontalPadding = 0.65f;
+        [SerializeField, Min(0f)] private float verticalPadding = 1.35f;
         [SerializeField, Min(0.01f)] private float transitionDuration = 0.45f;
         [SerializeField, Min(0.01f)] private float followSpeed = 8f;
 
         private UnityEngine.Camera controlledCamera;
         private Vector3 overviewPosition;
         private PlayerBoardView followTarget;
+        private int lastScreenWidth;
+        private int lastScreenHeight;
 
         private void Awake()
         {
             ValidateSizes();
             controlledCamera = GetComponent<UnityEngine.Camera>();
             overviewPosition = transform.position;
+            RefreshResponsiveOverview();
             controlledCamera.orthographicSize = overviewSize;
         }
 
@@ -38,6 +44,11 @@ namespace GaeBullBing.Presentation.Camera
 
         private void LateUpdate()
         {
+            if (Screen.width != lastScreenWidth || Screen.height != lastScreenHeight)
+            {
+                RefreshResponsiveOverview();
+                if (followTarget == null) controlledCamera.orthographicSize = overviewSize;
+            }
             if (followTarget == null)
                 return;
 
@@ -81,6 +92,29 @@ namespace GaeBullBing.Presentation.Camera
 
             transform.position = targetPosition;
             controlledCamera.orthographicSize = targetSize;
+        }
+
+        private void RefreshResponsiveOverview()
+        {
+            lastScreenWidth = Screen.width;
+            lastScreenHeight = Screen.height;
+            if (boardView == null || lastScreenHeight <= 0) return;
+
+            var min = new Vector2(float.MaxValue, float.MaxValue);
+            var max = new Vector2(float.MinValue, float.MinValue);
+            for (var index = 0; index < GaeBullBing.Core.Board.BoardState.DefaultTileCount; index++)
+            {
+                var position = boardView.GetWorldPosition(index);
+                min = Vector2.Min(min, position);
+                max = Vector2.Max(max, position);
+            }
+
+            var aspect = (float)lastScreenWidth / lastScreenHeight;
+            var halfHeight = (max.y - min.y) * 0.5f + verticalPadding;
+            var halfWidthAsHeight = ((max.x - min.x) * 0.5f + horizontalPadding) / aspect;
+            overviewSize = Mathf.Max(halfHeight, halfWidthAsHeight);
+            var center = (min + max) * 0.5f;
+            overviewPosition = new Vector3(center.x, center.y, transform.position.z);
         }
     }
 }

@@ -7,9 +7,6 @@ namespace GaeBullBing.Presentation.UI
 {
     public sealed class DiceHudView : MonoBehaviour
     {
-        [SerializeField] private Text firstDiceText;
-        [SerializeField] private Text secondDiceText;
-        [SerializeField] private Text totalText;
         [SerializeField] private Button rollButton;
         [SerializeField] private DeveloperConsoleView developerConsole;
 
@@ -20,7 +17,6 @@ namespace GaeBullBing.Presentation.UI
             controller = gameController;
             rollButton.onClick.RemoveListener(OnRollClicked);
             rollButton.onClick.AddListener(OnRollClicked);
-            SetResults(0, 0);
             BeginPlayerTurn();
         }
 
@@ -38,12 +34,7 @@ namespace GaeBullBing.Presentation.UI
         {
             rollButton.interactable = !rolling;
             if (rolling)
-            {
                 rollButton.gameObject.SetActive(false);
-                firstDiceText.text = "?";
-                secondDiceText.text = "?";
-                totalText.text = "Rolling...";
-            }
         }
 
         public void SetBusy()
@@ -62,17 +53,9 @@ namespace GaeBullBing.Presentation.UI
         {
             rollButton.gameObject.SetActive(false);
             rollButton.interactable = false;
-            firstDiceText.text = "-";
-            secondDiceText.text = "-";
-            totalText.text = $"GAME OVER  {escapedCount}/{escapeLimit}";
         }
 
-        public void SetResults(int first, int second)
-        {
-            firstDiceText.text = first > 0 ? first.ToString() : "-";
-            secondDiceText.text = second > 0 ? second.ToString() : "-";
-            totalText.text = first + second > 0 ? $"Total  {first + second}" : "Roll the dice";
-        }
+        public void SetResults(int first, int second) { }
 
         private void OnRollClicked() => controller.RollDiceAndMovePlayer();
     }

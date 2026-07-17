@@ -1,4 +1,5 @@
 using System.Collections;
+using System;
 using GaeBullBing.Presentation.Board;
 using UnityEngine;
 
@@ -15,8 +16,10 @@ namespace GaeBullBing.Presentation.Monsters
         private SpriteRenderer healthFillRenderer;
         private Transform healthFill;
         private Coroutine layoutRoutine;
+        private bool isMoving;
 
         public int InstanceId { get; private set; }
+        public event Action<int, int> TileChanged;
 
         public void Initialize(int instanceId, BoardTilemapView view, int tileIndex)
         {
@@ -36,13 +39,28 @@ namespace GaeBullBing.Presentation.Monsters
         }
         private IEnumerator AnimateLayoutOffset(Vector3 targetOffset)
         {
-            var start = transform.position; positionOffset = targetOffset;
-            var target = boardView.GetWorldPosition(CurrentTileIndex) + positionOffset; var elapsed = 0f;
-            while (elapsed < .18f) { elapsed += Time.deltaTime; transform.position = Vector3.Lerp(start,target,Mathf.SmoothStep(0,1,Mathf.Clamp01(elapsed/.18f))); yield return null; }
-            transform.position = target; layoutRoutine = null;
+            var startOffset = positionOffset;
+            var elapsed = 0f;
+            while (elapsed < .18f)
+            {
+                elapsed += Time.deltaTime;
+                positionOffset = Vector3.Lerp(startOffset, targetOffset, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / .18f)));
+                if (!isMoving)
+                    transform.position = boardView.GetWorldPosition(CurrentTileIndex) + positionOffset;
+                yield return null;
+            }
+            positionOffset = targetOffset;
+            if (!isMoving)
+                transform.position = boardView.GetWorldPosition(CurrentTileIndex) + positionOffset;
+            layoutRoutine = null;
         }
         public int CurrentTileIndex { get; private set; }
-        public void SetVisible(bool visible) => gameObject.SetActive(visible);
+        public void SetVisible(bool visible)
+        {
+            if (spriteRenderer != null) spriteRenderer.enabled = visible;
+            if (healthBackgroundRenderer != null) healthBackgroundRenderer.enabled = visible;
+            if (healthFillRenderer != null) healthFillRenderer.enabled = visible;
+        }
 
         private void LateUpdate()
         {
@@ -70,24 +88,29 @@ namespace GaeBullBing.Presentation.Monsters
 
         public IEnumerator MoveSteps(int startTileIndex, int distance)
         {
+            isMoving = true;
             for (var step = 1; step <= distance; step++)
             {
                 var fromIndex = (startTileIndex + step - 1) % GaeBullBing.Core.Board.BoardState.DefaultTileCount;
                 var toIndex = (startTileIndex + step) % GaeBullBing.Core.Board.BoardState.DefaultTileCount;
-                var from = boardView.GetWorldPosition(fromIndex) + positionOffset;
-                var to = boardView.GetWorldPosition(toIndex) + positionOffset;
+                var from = boardView.GetWorldPosition(fromIndex);
+                var to = boardView.GetWorldPosition(toIndex);
                 var elapsed = 0f;
 
                 while (elapsed < stepDuration)
                 {
                     elapsed += Time.deltaTime;
                     var progress = Mathf.Clamp01(elapsed / stepDuration);
-                    transform.position = Vector3.Lerp(from, to, Mathf.SmoothStep(0f, 1f, progress));
+                    transform.position = Vector3.Lerp(from, to, Mathf.SmoothStep(0f, 1f, progress)) + positionOffset;
                     yield return null;
                 }
-                transform.position = to;
+                var previousTileIndex = CurrentTileIndex;
                 CurrentTileIndex = toIndex;
+                transform.position = to + positionOffset;
+                TileChanged?.Invoke(previousTileIndex, toIndex);
             }
+            isMoving = false;
+            transform.position = boardView.GetWorldPosition(CurrentTileIndex) + positionOffset;
         }
 
         public IEnumerator PlayHit()

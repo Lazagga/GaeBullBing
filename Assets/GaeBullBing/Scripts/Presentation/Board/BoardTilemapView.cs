@@ -23,7 +23,7 @@ namespace GaeBullBing.Presentation.Board
                 Rebuild();
         }
 
-        private void OnValidate() => ConfigureSorting();
+        private void Reset() => ConfigureSorting();
 
         private void ConfigureSorting()
         {

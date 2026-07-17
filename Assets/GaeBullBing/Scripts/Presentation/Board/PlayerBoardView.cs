@@ -1,4 +1,5 @@
 using System.Collections;
+using System;
 using UnityEngine;
 
 namespace GaeBullBing.Presentation.Board
@@ -13,8 +14,10 @@ namespace GaeBullBing.Presentation.Board
         private SpriteRenderer visualRenderer;
         private int currentTileIndex;
         private Coroutine layoutRoutine;
+        private bool isMoving;
 
         public Vector3 CameraFollowPosition { get; private set; }
+        public event Action<int> TileEntered;
 
         public void Initialize(BoardTilemapView view, int tileIndex)
         {
@@ -61,40 +64,62 @@ namespace GaeBullBing.Presentation.Board
 
         private IEnumerator AnimateLayoutOffset(Vector3 targetOffset)
         {
-            var start = transform.position; positionOffset = targetOffset;
-            var target = boardView.GetWorldPosition(currentTileIndex) + positionOffset; var elapsed = 0f;
-            while (elapsed < .18f) { elapsed += Time.deltaTime; var p = Mathf.SmoothStep(0,1,Mathf.Clamp01(elapsed/.18f)); transform.position = Vector3.Lerp(start,target,p); CameraFollowPosition = transform.position; yield return null; }
-            transform.position = target; CameraFollowPosition = target; layoutRoutine = null;
+            var startOffset = positionOffset;
+            var elapsed = 0f;
+            while (elapsed < .18f)
+            {
+                elapsed += Time.deltaTime;
+                var progress = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / .18f));
+                positionOffset = Vector3.Lerp(startOffset, targetOffset, progress);
+                if (!isMoving)
+                {
+                    transform.position = boardView.GetWorldPosition(currentTileIndex) + positionOffset;
+                    CameraFollowPosition = transform.position;
+                }
+                yield return null;
+            }
+            positionOffset = targetOffset;
+            if (!isMoving)
+            {
+                transform.position = boardView.GetWorldPosition(currentTileIndex) + positionOffset;
+                CameraFollowPosition = transform.position;
+            }
+            layoutRoutine = null;
         }
 
         public IEnumerator MoveSteps(int startTileIndex, int distance)
         {
             EnsureBoardView();
+            isMoving = true;
 
             for (var step = 1; step <= distance; step++)
             {
                 var fromIndex = (startTileIndex + step - 1) % GaeBullBing.Core.Board.BoardState.DefaultTileCount;
                 var toIndex = (startTileIndex + step) % GaeBullBing.Core.Board.BoardState.DefaultTileCount;
-                var from = boardView.GetWorldPosition(fromIndex) + positionOffset;
-                var to = boardView.GetWorldPosition(toIndex) + positionOffset;
+                var from = boardView.GetWorldPosition(fromIndex);
+                var to = boardView.GetWorldPosition(toIndex);
                 var elapsed = 0f;
 
                 while (elapsed < stepDuration)
                 {
                     elapsed += Time.deltaTime;
                     var progress = Mathf.Clamp01(elapsed / stepDuration);
-                    var position = Vector3.Lerp(from, to, Mathf.SmoothStep(0f, 1f, progress));
+                    var position = Vector3.Lerp(from, to, Mathf.SmoothStep(0f, 1f, progress)) + positionOffset;
                     CameraFollowPosition = position;
                     position.y += Mathf.Sin(progress * Mathf.PI) * hopHeight;
                     transform.position = position;
                     yield return null;
                 }
 
-                transform.position = to;
-                CameraFollowPosition = to;
                 currentTileIndex = toIndex;
+                transform.position = to + positionOffset;
+                CameraFollowPosition = transform.position;
+                TileEntered?.Invoke(toIndex);
             }
 
+            isMoving = false;
+            transform.position = boardView.GetWorldPosition(currentTileIndex) + positionOffset;
+            CameraFollowPosition = transform.position;
             boardView.PlayPress((startTileIndex + distance) % GaeBullBing.Core.Board.BoardState.DefaultTileCount);
         }
 

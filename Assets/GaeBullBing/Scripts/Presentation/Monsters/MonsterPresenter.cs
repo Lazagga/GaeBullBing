@@ -43,6 +43,7 @@ namespace GaeBullBing.Presentation.Monsters
             renderer.sprite = monsterSprite;
             var view = monsterObject.AddComponent<MonsterBoardView>();
             view.Initialize(state.InstanceId, boardView, state.CurrentTileIndex);
+            view.TileChanged += OnMonsterTileChanged;
             view.UpdateHealth(state.CurrentHealth, state.MaxHealth);
             views.Add(state.InstanceId, view);
             states.Add(state.InstanceId, state);
@@ -56,6 +57,7 @@ namespace GaeBullBing.Presentation.Monsters
             yield return view.MoveSteps(result.StartTileIndex, result.Distance);
             if (result.ReachedBase)
             {
+                view.TileChanged -= OnMonsterTileChanged;
                 views.Remove(result.InstanceId);
                 states.Remove(result.InstanceId);
                 Destroy(view.gameObject);
@@ -63,6 +65,13 @@ namespace GaeBullBing.Presentation.Monsters
         }
 
         public void RefreshLayout() => ReflowAll();
+
+        private void OnMonsterTileChanged(int previousTileIndex, int currentTileIndex)
+        {
+            ReflowTile(previousTileIndex);
+            if (currentTileIndex != previousTileIndex)
+                ReflowTile(currentTileIndex);
+        }
 
         public IEnumerator ApplyAttack(TowerAttackResult result)
         {
@@ -74,6 +83,7 @@ namespace GaeBullBing.Presentation.Monsters
             if (result.Killed)
             {
                 var tile = view.CurrentTileIndex;
+                view.TileChanged -= OnMonsterTileChanged;
                 views.Remove(result.TargetInstanceId);
                 states.Remove(result.TargetInstanceId);
                 Destroy(view.gameObject);
