@@ -1,5 +1,5 @@
 {
   "name": "GaeBullBing.Presentation",
   "rootNamespace": "GaeBullBing.Presentation",
-  "references": ["GaeBullBing.Core"]
+  "references": ["GaeBullBing.Core", "Unity.InputSystem"]
 }

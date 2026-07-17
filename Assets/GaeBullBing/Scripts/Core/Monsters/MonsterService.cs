@@ -26,18 +26,20 @@ namespace GaeBullBing.Core.Monsters
     {
         private int nextInstanceId = 1;
 
-        public MonsterState Spawn(GameState state, MonsterDefinition definition)
+        public MonsterState Spawn(GameState state, MonsterDefinition definition, float healthMultiplier = 1f)
         {
             if (state == null)
                 throw new ArgumentNullException(nameof(state));
             if (definition == null)
                 throw new ArgumentNullException(nameof(definition));
 
+            var maxHealth = Math.Max(1, (int)Math.Ceiling(definition.MaxHp * healthMultiplier));
             var monster = new MonsterState
             {
                 InstanceId = nextInstanceId++,
                 DefinitionId = definition.Id,
-                CurrentHealth = definition.MaxHp,
+                CurrentHealth = maxHealth,
+                MaxHealth = maxHealth,
                 CurrentTileIndex = 0,
                 MoveDistance = definition.MoveDistance,
                 DistanceTravelled = 0
@@ -57,8 +59,16 @@ namespace GaeBullBing.Core.Monsters
 
             foreach (var monster in state.Monsters)
             {
+                var currentLine = GetLine(monster.CurrentTileIndex);
+                if (monster.FreezeImmuneLine >= 0 && monster.FreezeImmuneLine != currentLine)
+                    monster.FreezeImmuneLine = -1;
                 var remainingToBase = BoardState.DefaultTileCount - monster.DistanceTravelled;
-                var distance = Math.Min(monster.MoveDistance, remainingToBase);
+                var cannotMove = monster.FrozenMovesRemaining > 0 || monster.StunnedMovesRemaining > 0;
+                if (monster.FrozenMovesRemaining > 0) { monster.FrozenMovesRemaining--; monster.FreezeImmuneLine = currentLine; }
+                if (monster.StunnedMovesRemaining > 0) monster.StunnedMovesRemaining--;
+                var onIce = state.Board.Tiles.Count > monster.CurrentTileIndex && state.Board.Tiles[monster.CurrentTileIndex].IceTurnsRemaining > 0;
+                var moveDistance = onIce ? 1 : monster.MoveDistance;
+                var distance = cannotMove ? 0 : Math.Min(moveDistance, remainingToBase);
                 var startTileIndex = monster.CurrentTileIndex;
                 monster.DistanceTravelled += distance;
                 monster.CurrentTileIndex = (monster.CurrentTileIndex + distance) % BoardState.DefaultTileCount;
@@ -73,6 +83,14 @@ namespace GaeBullBing.Core.Monsters
                 state.Monsters.Remove(monster);
 
             return results;
+        }
+
+        public static int GetLine(int tileIndex)
+        {
+            if (tileIndex <= 9) return 0;
+            if (tileIndex <= 18) return 1;
+            if (tileIndex <= 27) return 2;
+            return 3;
         }
     }
 }

@@ -10,7 +10,6 @@ namespace GaeBullBing.Presentation.UI
         [SerializeField] private Text secondDiceText;
         [SerializeField] private Text totalText;
         [SerializeField] private Button rollButton;
-        [SerializeField] private Button endTurnButton;
 
         private GameController controller;
 
@@ -19,8 +18,6 @@ namespace GaeBullBing.Presentation.UI
             controller = gameController;
             rollButton.onClick.RemoveListener(OnRollClicked);
             rollButton.onClick.AddListener(OnRollClicked);
-            endTurnButton.onClick.RemoveListener(OnEndTurnClicked);
-            endTurnButton.onClick.AddListener(OnEndTurnClicked);
             SetResults(0, 0);
             BeginPlayerTurn();
         }
@@ -28,31 +25,34 @@ namespace GaeBullBing.Presentation.UI
         public void SetRolling(bool rolling)
         {
             rollButton.interactable = !rolling;
-            endTurnButton.interactable = false;
             if (rolling)
             {
+                rollButton.gameObject.SetActive(false);
                 firstDiceText.text = "?";
                 secondDiceText.text = "?";
                 totalText.text = "Rolling...";
             }
         }
 
-        public void SetAwaitingEndTurn()
-        {
-            rollButton.interactable = false;
-            endTurnButton.interactable = true;
-        }
-
         public void SetBusy()
         {
+            rollButton.gameObject.SetActive(false);
             rollButton.interactable = false;
-            endTurnButton.interactable = false;
         }
 
         public void BeginPlayerTurn()
         {
+            rollButton.gameObject.SetActive(true);
             rollButton.interactable = true;
-            endTurnButton.interactable = false;
+        }
+
+        public void ShowGameOver(int escapedCount, int escapeLimit)
+        {
+            rollButton.gameObject.SetActive(false);
+            rollButton.interactable = false;
+            firstDiceText.text = "-";
+            secondDiceText.text = "-";
+            totalText.text = $"GAME OVER  {escapedCount}/{escapeLimit}";
         }
 
         public void SetResults(int first, int second)
@@ -63,6 +63,5 @@ namespace GaeBullBing.Presentation.UI
         }
 
         private void OnRollClicked() => controller.RollDiceAndMovePlayer();
-        private void OnEndTurnClicked() => controller.EndTurn();
     }
 }

@@ -9,22 +9,22 @@ namespace GaeBullBing.Core.Data
         [SerializeField] private string id = string.Empty;
         [SerializeField] private string displayName = string.Empty;
         [SerializeField] private TowerElement element;
-        [SerializeField] private TowerAttackType attackType;
-        [SerializeField] private TowerLevelData[] levels = Array.Empty<TowerLevelData>();
+        [SerializeField, Min(1)] private int tier = 1;
+        [SerializeField, Min(0)] private int damage;
+        [SerializeField, Min(0)] private int range;
+        [SerializeField, Min(1)] private int targetCount = 1;
+        [SerializeField, Min(1)] private int attackCount = 1;
+        [SerializeField] private string[] baseEffectIds = Array.Empty<string>();
 
         public string Id => id;
         public string DisplayName => displayName;
         public TowerElement Element => element;
-        public TowerAttackType AttackType => attackType;
-        public TowerLevelData[] Levels => levels;
+        public int Tier => tier;
+        public int Damage => damage;
+        public int Range => range;
+        public int TargetCount => targetCount;
+        public int AttackCount => attackCount;
+        public string[] BaseEffectIds => baseEffectIds;
     }
 
-    [Serializable]
-    public struct TowerLevelData
-    {
-        [Min(0)] public int Damage;
-        [Min(0)] public int Range;
-        [Min(0.01f)] public float AttackInterval;
-        [Min(0)] public int UpgradeCost;
-    }
 }

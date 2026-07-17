@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4b7c006461b7c1c43a1de40283f0aad3, type: 3}
-  m_Name: MON_001_Tanker
+  m_Name: "MON_001_\uD0F1\uCEE4"
   m_EditorClassIdentifier: GaeBullBing.Core::GaeBullBing.Core.Data.MonsterDefinition
   id: MON_001
   displayName: "\uD0F1\uCEE4"

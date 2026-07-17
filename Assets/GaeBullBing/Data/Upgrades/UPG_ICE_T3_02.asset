@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6659c42042a1024449a41dd8505788fa, type: 3}
+  m_Name: UPG_ICE_T3_02
+  m_EditorClassIdentifier: GaeBullBing.Core::GaeBullBing.Core.Data.TowerUpgradeDefinition
+  id: UPG_ICE_T3_02
+  displayName: "TOW_02_\uC5BC\uC74C_T3_02"
+  description: "\uBE59\uACB0 \uC0C1\uD0DC\uC758 \uC801 \uACF5\uACA9 \uC2DC 5\uBC30\uC758
+    \uCD94\uAC00 \uD53C\uD574\uB97C \uC785\uD798"
+  element: 2
+  tier: 3
+  weight: 1
+  statModifiers:
+  - Stat: damage
+    Operation: add
+    Value: 20
+  effects:
+  - Id: freeze_damage_multiply
+    Value: 5

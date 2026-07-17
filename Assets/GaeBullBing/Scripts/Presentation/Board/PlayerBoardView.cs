@@ -10,17 +10,61 @@ namespace GaeBullBing.Presentation.Board
         [SerializeField] private Vector3 positionOffset = new(0f, 0.28f, 0f);
 
         private BoardTilemapView boardView;
+        private SpriteRenderer visualRenderer;
+        private int currentTileIndex;
+        private Coroutine layoutRoutine;
+
+        public Vector3 CameraFollowPosition { get; private set; }
 
         public void Initialize(BoardTilemapView view, int tileIndex)
         {
             boardView = view;
+            ConfigureVisual();
             SnapTo(tileIndex);
+        }
+
+        private void ConfigureVisual()
+        {
+            var source = GetComponent<SpriteRenderer>();
+            if (source == null || transform.Find("Visual") != null) return;
+            var visual = new GameObject("Visual"); visual.transform.SetParent(transform, false);
+            visual.transform.localScale = new Vector3(.32f, .72f, 1f);
+            var renderer = visual.AddComponent<SpriteRenderer>();
+            renderer.sprite = source.sprite; renderer.color = source.color; renderer.sharedMaterial = source.sharedMaterial;
+            renderer.sortingLayerID = source.sortingLayerID; renderer.sortingOrder = source.sortingOrder;
+            renderer.flipX = source.flipX; renderer.flipY = source.flipY; source.enabled = false;
+            visualRenderer = renderer;
+        }
+
+        private void LateUpdate()
+        {
+            if (visualRenderer == null)
+                visualRenderer = transform.Find("Visual")?.GetComponent<SpriteRenderer>();
+            if (visualRenderer != null)
+                visualRenderer.sortingOrder = BoardDepthSorting.GetOrder(CameraFollowPosition, 20);
         }
 
         public void SnapTo(int tileIndex)
         {
             EnsureBoardView();
+            currentTileIndex = tileIndex;
             transform.position = boardView.GetWorldPosition(tileIndex) + positionOffset;
+            CameraFollowPosition = transform.position;
+        }
+
+        public void SetLayoutOffset(Vector3 offset)
+        {
+            var targetOffset = offset + new Vector3(0f, .28f);
+            if (layoutRoutine != null) StopCoroutine(layoutRoutine);
+            layoutRoutine = StartCoroutine(AnimateLayoutOffset(targetOffset));
+        }
+
+        private IEnumerator AnimateLayoutOffset(Vector3 targetOffset)
+        {
+            var start = transform.position; positionOffset = targetOffset;
+            var target = boardView.GetWorldPosition(currentTileIndex) + positionOffset; var elapsed = 0f;
+            while (elapsed < .18f) { elapsed += Time.deltaTime; var p = Mathf.SmoothStep(0,1,Mathf.Clamp01(elapsed/.18f)); transform.position = Vector3.Lerp(start,target,p); CameraFollowPosition = transform.position; yield return null; }
+            transform.position = target; CameraFollowPosition = target; layoutRoutine = null;
         }
 
         public IEnumerator MoveSteps(int startTileIndex, int distance)
@@ -40,12 +84,15 @@ namespace GaeBullBing.Presentation.Board
                     elapsed += Time.deltaTime;
                     var progress = Mathf.Clamp01(elapsed / stepDuration);
                     var position = Vector3.Lerp(from, to, Mathf.SmoothStep(0f, 1f, progress));
+                    CameraFollowPosition = position;
                     position.y += Mathf.Sin(progress * Mathf.PI) * hopHeight;
                     transform.position = position;
                     yield return null;
                 }
 
                 transform.position = to;
+                CameraFollowPosition = to;
+                currentTileIndex = toIndex;
             }
 
             boardView.PlayPress((startTileIndex + distance) % GaeBullBing.Core.Board.BoardState.DefaultTileCount);

@@ -1,0 +1,6 @@
+{
+  "name": "GaeBullBing.Editor",
+  "rootNamespace": "GaeBullBing.Editor",
+  "references": ["GaeBullBing.Core"],
+  "includePlatforms": ["Editor"]
+}

@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6659c42042a1024449a41dd8505788fa, type: 3}
+  m_Name: UPG_ICE_T3_00
+  m_EditorClassIdentifier: GaeBullBing.Core::GaeBullBing.Core.Data.TowerUpgradeDefinition
+  id: UPG_ICE_T3_00
+  displayName: "TOW_02_\uC5BC\uC74C_T3_00"
+  description: "\uC0AC\uAC70\uB9AC \uB0B4\uC758 \uBAA8\uB4E0 \uC801\uC5D0 \uB300\uD55C
+    \uBC94\uC704\uACF5\uACA9\uC73C\uB85C \uC804\uD658, \uC0AC\uAC70\uB9AC +3"
+  element: 2
+  tier: 3
+  weight: 1
+  statModifiers:
+  - Stat: damage
+    Operation: add
+    Value: 20
+  - Stat: range
+    Operation: add
+    Value: 3
+  effects:
+  - Id: range_attack
+    Value: 1

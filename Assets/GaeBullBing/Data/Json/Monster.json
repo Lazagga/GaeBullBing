@@ -1,0 +1,52 @@
+{
+  "monster_database": [
+    {
+      "id": "MON_001",
+      "name": "탱커",
+      "tier": "Normal",
+      "appearance_wave": 1,
+      "base_stats": {
+        "max_hp": 30,
+        "move_speed": 1,
+        "base_defense": 0
+      },
+      "status_immunities": {
+      },
+      "kill_rewards": {
+        "dice_points": 5
+      }
+    },
+        {
+      "id": "MON_002",
+      "name": "일반",
+      "tier": "Normal",
+      "appearance_wave": 1,
+      "base_stats": {
+        "max_hp": 20,
+        "move_speed": 2,
+        "base_defense": 0
+      },
+      "status_immunities": {
+      },
+      "kill_rewards": {
+        "dice_points": 5
+      }
+    },
+        {
+      "id": "MON_003",
+      "name": "빠른거",
+      "tier": "Normal",
+      "appearance_wave": 1,
+      "base_stats": {
+        "max_hp": 10,
+        "move_speed": 3,
+        "base_defense": 0
+      },
+      "status_immunities": {
+      },
+      "kill_rewards": {
+        "dice_points": 5
+      }
+    }
+  ]
+}

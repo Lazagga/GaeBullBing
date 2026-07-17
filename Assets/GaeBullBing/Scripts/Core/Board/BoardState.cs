@@ -15,6 +15,12 @@ namespace GaeBullBing.Core.Board
     {
         public int Index { get; set; }
         public string DefinitionId { get; set; } = string.Empty;
+        public string BuildTowerDefinitionId { get; set; } = string.Empty;
         public TowerState Tower { get; set; }
+        public int IceTurnsRemaining { get; set; }
+        public int FireTurnsRemaining { get; set; }
+
+        public bool HasTower => Tower != null;
+        public bool CanBuildTower => !string.IsNullOrEmpty(BuildTowerDefinitionId);
     }
 }
