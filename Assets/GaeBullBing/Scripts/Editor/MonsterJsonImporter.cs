@@ -57,6 +57,7 @@ namespace GaeBullBing.Editor
                 serialized.FindProperty("id").stringValue = source.id;
                 serialized.FindProperty("displayName").stringValue = source.name;
                 serialized.FindProperty("tier").enumValueIndex = (int)tier;
+                serialized.FindProperty("appearanceWave").intValue = Mathf.Max(1, source.appearance_wave);
                 serialized.FindProperty("maxHp").intValue = source.base_stats.max_hp;
                 serialized.FindProperty("moveDistance").intValue = source.base_stats.move_speed;
                 serialized.FindProperty("baseDefense").floatValue = source.base_stats.base_defense;
@@ -136,6 +137,7 @@ namespace GaeBullBing.Editor
             public string id;
             public string name;
             public string tier;
+            public int appearance_wave = 1;
             public MonsterBaseStatsJson base_stats;
         }
 

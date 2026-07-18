@@ -619,6 +619,32 @@ namespace GaeBullBing.Tests.EditMode
         }
 
         [Test]
+        public void DifficultyService_UsesConfiguredBossAppearanceLevel()
+        {
+            var patterns = new[]
+            {
+                new GaeBullBing.Core.Monsters.DifficultyPatternData
+                {
+                    RequiredKills = 0,
+                    HealthMultiplier = 1f,
+                    MonsterIds = new[] { "MON_001" }
+                }
+            };
+            var service = new GaeBullBing.Core.Monsters.DifficultyService(
+                patterns, 5, 1.2f, 0f, 4);
+            var difficulty = new GaeBullBing.Core.Monsters.DifficultyState();
+            service.Reset(difficulty);
+
+            service.AddKills(difficulty, 14);
+            Assert.That(service.IsBossLevel(difficulty), Is.False);
+
+            service.AddKills(difficulty, 1);
+            Assert.That(difficulty.Level, Is.EqualTo(4));
+            Assert.That(service.BossLevel, Is.EqualTo(4));
+            Assert.That(service.IsBossLevel(difficulty), Is.True);
+        }
+
+        [Test]
         public void Boss_IgnoresHealthMultiplierAndLevelDefenseBonus()
         {
             var state = new GameState();

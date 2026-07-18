@@ -15,6 +15,7 @@ MonoBehaviour:
   id: MON_002
   displayName: "\uC5EC\uC6B0"
   tier: 0
+  appearanceWave: 1
   maxHp: 300
   moveDistance: 2
   baseDefense: 0

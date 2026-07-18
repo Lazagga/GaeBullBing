@@ -142,6 +142,10 @@ namespace GaeBullBing.Presentation.Towers
         {
             var elapsed = 0f;
             var startScale = renderer.transform.localScale;
+            var horizontalDelta = end.x - start.x;
+            var rotationSpeed = Mathf.Abs(horizontalDelta) < .001f
+                ? 0f
+                : -Mathf.Sign(horizontalDelta) * 540f;
             while (elapsed < duration)
             {
                 elapsed += Time.deltaTime;
@@ -149,7 +153,7 @@ namespace GaeBullBing.Presentation.Towers
                 var eased = normalized * normalized * (3f - 2f * normalized);
                 var position = Vector3.LerpUnclamped(start, end, eased);
                 renderer.transform.position = position;
-                renderer.transform.Rotate(0f, 0f, -540f * Time.deltaTime);
+                renderer.transform.Rotate(0f, 0f, rotationSpeed * Time.deltaTime);
                 renderer.sortingOrder = GetStoneOrder(sortingGroundPosition, sortingTileIndex);
                 if (shrink)
                     renderer.transform.localScale = Vector3.Lerp(startScale, Vector3.zero, eased);

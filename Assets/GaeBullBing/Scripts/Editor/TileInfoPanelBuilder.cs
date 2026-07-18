@@ -10,6 +10,8 @@ namespace GaeBullBing.Editor
 {
     public static class TileInfoPanelBuilder
     {
+        private const string UiFontPath = "Assets/Fonts/NanumDongHwaDdoBag.ttf";
+
         [MenuItem("GaeBullBing/UI/Build Tile Information Panel")]
         public static void Build()
         {
@@ -105,7 +107,7 @@ namespace GaeBullBing.Editor
         {
             var value = CreateUiObject(name, parent);
             var text = value.AddComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.font = LoadUiFont();
             text.fontSize = size;
             text.fontStyle = style;
             text.alignment = anchor;
@@ -115,6 +117,10 @@ namespace GaeBullBing.Editor
             text.raycastTarget = false;
             return text;
         }
+
+        private static Font LoadUiFont() =>
+            AssetDatabase.LoadAssetAtPath<Font>(UiFontPath) ??
+            Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
         private static void SetRect(RectTransform rect, Vector2 anchorMin, Vector2 anchorMax, Vector2 position, Vector2 size, Vector2 pivot)
         {

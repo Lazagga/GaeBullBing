@@ -44,12 +44,14 @@ namespace GaeBullBing.Core.Monsters
         private readonly float healthMultiplierPerLevel;
         private readonly float baseHealthMultiplier;
         private readonly float defensePerLevel;
+        private readonly int bossLevel;
 
         public DifficultyService(
             DifficultyPatternData[] patterns,
             int killsPerLevel = 0,
             float healthMultiplierPerLevel = 0f,
-            float defensePerLevel = 0f)
+            float defensePerLevel = 0f,
+            int bossLevel = FinalBossLevel)
         {
             this.patterns = patterns ?? throw new ArgumentNullException(nameof(patterns));
             if (patterns.Length == 0)
@@ -62,6 +64,7 @@ namespace GaeBullBing.Core.Monsters
                 ? healthMultiplierPerLevel
                 : InferHealthMultiplier(this.patterns);
             this.defensePerLevel = Math.Max(0f, defensePerLevel);
+            this.bossLevel = Math.Max(1, bossLevel);
             baseHealthMultiplier = Math.Max(0f, this.patterns[0].HealthMultiplier);
         }
 
@@ -103,7 +106,7 @@ namespace GaeBullBing.Core.Monsters
             GetPatternIndex(state.KillCount) >= patterns.Length - 1;
 
         public const int FinalBossLevel = 6;
-        public int BossLevel => FinalBossLevel;
+        public int BossLevel => bossLevel;
 
         public bool IsBossLevel(DifficultyState state) =>
             GetLevel(state.KillCount) >= BossLevel;

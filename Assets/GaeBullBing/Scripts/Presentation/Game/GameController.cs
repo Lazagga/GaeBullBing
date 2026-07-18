@@ -289,11 +289,13 @@ namespace GaeBullBing.Presentation.Game
             if (difficultyPatterns == null || difficultyPatterns.Length == 0)
                 difficultyPatterns = new[] { new DifficultyPatternData { MonsterIds = new[] { defaultMonster.Id } } };
             monsterDatabase = new MonsterDatabase(monsterDefinitions);
+            var bossAppearanceLevel = FindBossDefinition()?.AppearanceWave ?? DifficultyService.FinalBossLevel;
             difficultyService = new DifficultyService(
                 difficultyPatterns,
                 killsPerDifficultyLevel,
                 healthMultiplierPerDifficultyLevel,
-                defensePerDifficultyLevel);
+                defensePerDifficultyLevel,
+                bossAppearanceLevel);
             difficultyService.Reset(State.Difficulty);
             dice3DPresenter = GetComponent<Dice3DPresenter>();
             if (dice3DPresenter == null)

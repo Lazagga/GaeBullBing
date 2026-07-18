@@ -9,6 +9,8 @@ namespace GaeBullBing.Editor
 {
     public static class DiceTuningPanelBuilder
     {
+        private const string UiFontPath = "Assets/Fonts/NanumDongHwaDdoBag.ttf";
+
         [MenuItem("GaeBullBing/UI/Build Fixed Dice Tuning UI")]
         public static void BuildFixedDiceTuningUI()
         {
@@ -93,7 +95,7 @@ namespace GaeBullBing.Editor
             textRect.sizeDelta = Vector2.zero;
             textRect.anchoredPosition = Vector2.zero;
             var text = textObject.GetComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.font = LoadUiFont();
             text.fontSize = 18;
             text.alignment = TextAnchor.MiddleCenter;
             text.color = Color.white;
@@ -136,7 +138,7 @@ namespace GaeBullBing.Editor
             {
                 var textObject = CreateRect("Text", value.transform, Vector2.zero, size, typeof(CanvasRenderer), typeof(Text));
                 var text = textObject.GetComponent<Text>();
-                text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                text.font = LoadUiFont();
                 text.fontSize = 26;
                 text.alignment = TextAnchor.MiddleCenter;
                 text.color = Color.white;
@@ -145,6 +147,10 @@ namespace GaeBullBing.Editor
             }
             return value.GetComponent<Button>();
         }
+
+        private static Font LoadUiFont() =>
+            AssetDatabase.LoadAssetAtPath<Font>(UiFontPath) ??
+            Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
         private static void AssignArray<T>(SerializedProperty property, T[] values) where T : Object
         {
