@@ -445,6 +445,13 @@ namespace GaeBullBing.Presentation.Game
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
 
+        public void ResetGameFromConsole()
+        {
+            // Reloading the scene reconstructs GameState, presenters and transient effects,
+            // while the title flags ensure the fresh scene opens at the title screen.
+            ReturnToTitle();
+        }
+
         public void RestartGame()
         {
             AcceptsGameplayInput = false;
