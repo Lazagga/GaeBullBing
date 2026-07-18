@@ -4,6 +4,8 @@ using GaeBullBing.Core.Dice;
 using GaeBullBing.Presentation.Dice;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
 
 namespace GaeBullBing.Presentation.UI
 {
@@ -16,11 +18,12 @@ namespace GaeBullBing.Presentation.UI
         [SerializeField] private Button decrementButton;
         [SerializeField] private Button incrementButton;
         [SerializeField] private Button backButton;
+        [SerializeField] private DiceTuning3DDisplay display3D;
+        [SerializeField] private DeveloperConsoleView developerConsole;
 
         private IReadOnlyList<DiceState> dice;
         private Func<int, int, int, bool> selected;
         private Action allTowerBoostSelected;
-        private DiceTuning3DDisplay display3D;
         private int selectedDice;
         private Step currentStep;
 
@@ -28,10 +31,48 @@ namespace GaeBullBing.Presentation.UI
 
         private void Awake()
         {
-            var host = new GameObject("Dice Tuning 3D Host").AddComponent<DiceTuning3DDisplay>();
-            host.transform.SetParent(transform, false);
-            host.Initialize((RectTransform)transform);
-            display3D = host;
+            if (developerConsole == null)
+                developerConsole = FindFirstObjectByType<DeveloperConsoleView>(FindObjectsInactive.Include);
+            if (display3D == null) display3D = GetComponent<DiceTuning3DDisplay>();
+            if (display3D == null) throw new MissingReferenceException("DiceTuning3DDisplay is not connected.");
+            display3D.Initialize((RectTransform)transform);
+        }
+
+        private void Update()
+        {
+            if (root == null || !root.activeInHierarchy || developerConsole != null && developerConsole.IsOpen) return;
+            var keyboard = Keyboard.current;
+            if (keyboard == null) return;
+
+            if (currentStep == Step.Reward)
+            {
+                if (Pressed(keyboard.digit1Key, keyboard.numpad1Key)) Invoke(diceButtons, 0);
+                else if (Pressed(keyboard.digit2Key, keyboard.numpad2Key)) Invoke(diceButtons, 1);
+            }
+            else if (currentStep == Step.Dice)
+            {
+                if (Pressed(keyboard.digit1Key, keyboard.numpad1Key)) SelectDice(0);
+                else if (Pressed(keyboard.digit2Key, keyboard.numpad2Key)) SelectDice(1);
+            }
+            else if (currentStep == Step.Face)
+            {
+                if (keyboard.upArrowKey.wasPressedThisFrame) display3D.RotateUp();
+                else if (keyboard.downArrowKey.wasPressedThisFrame) display3D.RotateDown();
+                else if (keyboard.leftArrowKey.wasPressedThisFrame) display3D.RotateLeft();
+                else if (keyboard.rightArrowKey.wasPressedThisFrame) display3D.RotateRight();
+                else if (Pressed(keyboard.digit1Key, keyboard.numpad1Key)) Invoke(decrementButton);
+                else if (Pressed(keyboard.digit2Key, keyboard.numpad2Key)) Invoke(incrementButton);
+            }
+        }
+
+        private static bool Pressed(KeyControl main, KeyControl numpad) => main.wasPressedThisFrame || numpad.wasPressedThisFrame;
+        private static void Invoke(IReadOnlyList<Button> buttons, int index)
+        {
+            if (index >= 0 && index < buttons.Count) Invoke(buttons[index]);
+        }
+        private static void Invoke(Button button)
+        {
+            if (button != null && button.gameObject.activeInHierarchy && button.interactable) button.onClick.Invoke();
         }
 
         public void Show(IReadOnlyList<DiceState> diceStates, Func<int, int, int, bool> onSelected,

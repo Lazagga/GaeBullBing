@@ -14,7 +14,7 @@ namespace GaeBullBing.Presentation.UI
         [SerializeField] private Text primaryText;
         [SerializeField] private RectTransform choicesRoot;
         [SerializeField] private Button[] choiceButtons = Array.Empty<Button>();
-        [SerializeField] private Vector2 screenOffset = new(0f, 80f);
+        [SerializeField] private Vector2 screenOffset = new(0f, 145f);
         [SerializeField, Min(20f)] private float choiceRadius = 90f;
         [SerializeField] private DeveloperConsoleView developerConsole;
 
@@ -121,9 +121,15 @@ namespace GaeBullBing.Presentation.UI
             {
                 var definition = definitions[index]; var button = choiceButtons[index];
                 button.gameObject.SetActive(true);
-                var angle = (90f + index * (360f / visibleCount)) * Mathf.Deg2Rad;
-                ((RectTransform)button.transform).anchoredPosition = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * choiceRadius;
-                button.GetComponentInChildren<Text>().text = definition.DisplayName;
+                var rect = (RectTransform)button.transform;
+                rect.sizeDelta = new Vector2(220f, 220f);
+                rect.anchoredPosition = new Vector2((index - (visibleCount - 1) * .5f) * 235f, 70f);
+                var label = button.GetComponentInChildren<Text>();
+                label.text = $"{definition.DisplayName}\n\n{definition.Description}";
+                label.alignment = TextAnchor.MiddleCenter;
+                label.resizeTextForBestFit = true;
+                label.resizeTextMinSize = 12;
+                label.resizeTextMaxSize = 20;
                 button.onClick.RemoveAllListeners(); button.onClick.AddListener(() => onSelected(definition));
             }
         }

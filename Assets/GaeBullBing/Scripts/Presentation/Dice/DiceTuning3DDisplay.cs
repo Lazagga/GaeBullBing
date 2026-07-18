@@ -16,14 +16,13 @@ namespace GaeBullBing.Presentation.Dice
             Vector3.down, Vector3.left, Vector3.back
         };
 
-        private RawImage display;
-        private GameObject visualRoot;
+        [SerializeField] private GameObject visualRoot;
+        [SerializeField] private RawImage display;
+        [SerializeField] private Button[] selectors;
+        [SerializeField] private Button[] arrows;
         private RenderTexture texture;
         private UnityEngine.Camera renderCamera;
         private DieView[] dice;
-        private Button[] selectors;
-        private Text[] names;
-        private Button[] arrows;
         private Material whiteMaterial;
         private Material blackMaterial;
         private Material blackPipMaterial;
@@ -39,10 +38,12 @@ namespace GaeBullBing.Presentation.Dice
 
         public void Initialize(RectTransform parent)
         {
-            if (display != null) return;
-            CreateDisplay(parent);
+            if (dice != null) return;
+            if (visualRoot == null || display == null || selectors == null || selectors.Length < 2 ||
+                arrows == null || arrows.Length < 4)
+                throw new MissingReferenceException("Dice tuning fixed UI is not connected in the scene.");
             CreateStage();
-            CreateControls(parent);
+            BindControls();
             visualRoot.SetActive(false);
         }
 
@@ -58,7 +59,6 @@ namespace GaeBullBing.Presentation.Dice
                 dice[i].Transform.gameObject.SetActive(i < values.Length);
                 selectors[i].gameObject.SetActive(i < values.Length);
                 selectors[i].transform.SetAsLastSibling();
-                names[i].gameObject.SetActive(false);
                 dice[i].Transform.position = center + new Vector3(i == 0 ? -1.65f : 1.65f, 0f, 0f);
                 dice[i].Transform.rotation = GetLargestFaceForwardRotation(values[i]);
                 SetFaceValues(dice[i], values[i]);
@@ -74,7 +74,6 @@ namespace GaeBullBing.Presentation.Dice
             {
                 dice[i].Transform.gameObject.SetActive(i == diceIndex);
                 selectors[i].gameObject.SetActive(false);
-                names[i].gameObject.SetActive(false);
             }
             dice[diceIndex].Transform.position = center;
             SetArrows(true);
@@ -91,6 +90,11 @@ namespace GaeBullBing.Presentation.Dice
             if (selectedDice < 0 || isRotating) return;
             StartCoroutine(RotateRoutine(axis, angle));
         }
+
+        public void RotateUp() => Rotate(Vector3.right, -90f);
+        public void RotateDown() => Rotate(Vector3.right, 90f);
+        public void RotateLeft() => Rotate(Vector3.up, -90f);
+        public void RotateRight() => Rotate(Vector3.up, 90f);
 
         private IEnumerator RotateRoutine(Vector3 axis, float angle)
         {
@@ -134,22 +138,8 @@ namespace GaeBullBing.Presentation.Dice
             return Quaternion.FromToRotation(normals[largestIndex], Vector3.back);
         }
 
-        private void CreateDisplay(RectTransform parent)
+        private void CreateRenderTexture()
         {
-            var objectRoot = new GameObject("Dice Tuning 3D", typeof(RectTransform));
-            objectRoot.transform.SetParent(parent, false);
-            visualRoot = objectRoot;
-
-            var imageObject = new GameObject("Display", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
-            imageObject.transform.SetParent(objectRoot.transform, false);
-            var rect = imageObject.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(.5f, .5f);
-            rect.anchorMax = new Vector2(.5f, .5f);
-            rect.sizeDelta = new Vector2(620f, 330f);
-            rect.anchoredPosition = new Vector2(0f, -15f);
-            display = imageObject.GetComponent<RawImage>();
-            display.raycastTarget = false;
-
             texture = new RenderTexture(900, 480, 24, RenderTextureFormat.ARGB32) { antiAliasing = 4 };
             texture.Create();
             display.texture = texture;
@@ -157,6 +147,7 @@ namespace GaeBullBing.Presentation.Dice
 
         private void CreateStage()
         {
+            CreateRenderTexture();
             var stage = new GameObject("Dice Tuning Render Stage");
             stage.transform.SetParent(transform, false);
             var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color");
@@ -195,65 +186,20 @@ namespace GaeBullBing.Presentation.Dice
             return new DieView(cube.transform, faces);
         }
 
-        private void CreateControls(RectTransform parent)
+        private void BindControls()
         {
-            parent = (RectTransform)visualRoot.transform;
-            selectors = new Button[2];
-            names = new Text[2];
             for (var i = 0; i < 2; i++)
             {
-                var x = i == 0 ? -120f : 120f;
-                names[i] = CreateText(parent, $"Dice {i + 1} Name", $"주사위 {i + 1}", new Vector2(x, 128f), new Vector2(180f, 36f), 22);
-                selectors[i] = CreateButton(parent, $"Select Dice {i + 1}", string.Empty, new Vector2(x, -15f), new Vector2(220f, 280f));
-                selectors[i].GetComponent<Image>().color = new Color(1f, 1f, 1f, .001f);
                 var captured = i;
+                selectors[i].onClick.RemoveAllListeners();
                 selectors[i].onClick.AddListener(() => selected?.Invoke(captured));
             }
-
-            arrows = new[]
-            {
-                CreateButton(parent, "Rotate Up", "▲", new Vector2(0f, 135f), new Vector2(56f, 44f)),
-                CreateButton(parent, "Rotate Down", "▼", new Vector2(0f, -150f), new Vector2(56f, 44f)),
-                CreateButton(parent, "Rotate Left", "◀", new Vector2(-175f, -10f), new Vector2(56f, 44f)),
-                CreateButton(parent, "Rotate Right", "▶", new Vector2(175f, -10f), new Vector2(56f, 44f))
-            };
-            arrows[0].onClick.AddListener(() => Rotate(Vector3.right, -90f));
-            arrows[1].onClick.AddListener(() => Rotate(Vector3.right, 90f));
-            arrows[2].onClick.AddListener(() => Rotate(Vector3.up, -90f));
-            arrows[3].onClick.AddListener(() => Rotate(Vector3.up, 90f));
+            foreach (var arrow in arrows) arrow.onClick.RemoveAllListeners();
+            arrows[0].onClick.AddListener(RotateUp);
+            arrows[1].onClick.AddListener(RotateDown);
+            arrows[2].onClick.AddListener(RotateLeft);
+            arrows[3].onClick.AddListener(RotateRight);
             SetArrows(false);
-        }
-
-        private static Button CreateButton(RectTransform parent, string name, string text, Vector2 position, Vector2 size)
-        {
-            var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
-            go.transform.SetParent(parent, false);
-            var rect = go.GetComponent<RectTransform>();
-            rect.anchorMin = rect.anchorMax = new Vector2(.5f, .5f);
-            rect.anchoredPosition = position;
-            rect.sizeDelta = size;
-            go.GetComponent<Image>().color = new Color(.24f, .28f, .36f, .96f);
-            if (!string.IsNullOrEmpty(text)) CreateText(rect, "Text", text, Vector2.zero, size, 26);
-            return go.GetComponent<Button>();
-        }
-
-        private static Text CreateText(RectTransform parent, string name, string value, Vector2 position, Vector2 size, int fontSize)
-        {
-            var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
-            go.transform.SetParent(parent, false);
-            var rect = go.GetComponent<RectTransform>();
-            rect.anchorMin = rect.anchorMax = new Vector2(.5f, .5f);
-            rect.anchoredPosition = position;
-            rect.sizeDelta = size;
-            var text = go.GetComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = fontSize;
-            text.fontStyle = FontStyle.Bold;
-            text.alignment = TextAnchor.MiddleCenter;
-            text.color = Color.white;
-            text.raycastTarget = false;
-            text.text = value;
-            return text;
         }
 
         private void SetFaceValues(DieView die, IReadOnlyList<int> faceValues)

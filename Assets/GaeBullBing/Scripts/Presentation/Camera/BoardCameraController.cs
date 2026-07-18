@@ -16,7 +16,6 @@ namespace GaeBullBing.Presentation.Camera
         [SerializeField, Min(0f)] private float verticalPadding = 1.35f;
         [SerializeField, Min(0.01f)] private float transitionDuration = 0.45f;
         [SerializeField, Min(0.01f)] private float followSpeed = 8f;
-        [SerializeField] private Color temporaryBackgroundColor = new(.42f, .46f, .52f, 1f);
 
         private UnityEngine.Camera controlledCamera;
         private Vector3 overviewPosition;
@@ -28,8 +27,6 @@ namespace GaeBullBing.Presentation.Camera
         {
             ValidateSizes();
             controlledCamera = GetComponent<UnityEngine.Camera>();
-            controlledCamera.clearFlags = CameraClearFlags.SolidColor;
-            controlledCamera.backgroundColor = temporaryBackgroundColor;
             overviewPosition = transform.position;
             RefreshResponsiveOverview();
             controlledCamera.orthographicSize = overviewSize;

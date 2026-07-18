@@ -9,6 +9,8 @@ namespace GaeBullBing.Presentation.Board
         [SerializeField, Min(0.01f)] private float stepDuration = 0.14f;
         [SerializeField, Min(0f)] private float hopHeight = 0.18f;
         [SerializeField] private Vector3 positionOffset = Vector3.zero;
+        [SerializeField] private Sprite frontSprite;
+        [SerializeField] private Sprite backSprite;
 
         private BoardTilemapView boardView;
         private SpriteRenderer visualRenderer;
@@ -18,6 +20,7 @@ namespace GaeBullBing.Presentation.Board
 
         public Vector3 CameraFollowPosition { get; private set; }
         public event Action<int> TileEntered;
+        public event Action<int> TileMoveStarted;
 
         public void Initialize(BoardTilemapView view, int tileIndex)
         {
@@ -33,7 +36,8 @@ namespace GaeBullBing.Presentation.Board
             var visual = new GameObject("Visual"); visual.transform.SetParent(transform, false);
             visual.transform.localScale = Vector3.one;
             var renderer = visual.AddComponent<SpriteRenderer>();
-            renderer.sprite = source.sprite; renderer.color = source.color; renderer.sharedMaterial = source.sharedMaterial;
+            if (frontSprite == null) frontSprite = source.sprite;
+            renderer.sprite = frontSprite; renderer.color = source.color; renderer.sharedMaterial = source.sharedMaterial;
             renderer.sortingLayerID = source.sortingLayerID; renderer.sortingOrder = source.sortingOrder;
             renderer.flipX = source.flipX; renderer.flipY = source.flipY; source.enabled = false;
             visualRenderer = renderer;
@@ -98,6 +102,8 @@ namespace GaeBullBing.Presentation.Board
                 var toIndex = (startTileIndex + step) % GaeBullBing.Core.Board.BoardState.DefaultTileCount;
                 var from = boardView.GetWorldPosition(fromIndex);
                 var to = boardView.GetWorldPosition(toIndex);
+                ApplyDirectionForDeparture(fromIndex);
+                TileMoveStarted?.Invoke(toIndex);
                 var elapsed = 0f;
 
                 while (elapsed < stepDuration)
@@ -127,6 +133,17 @@ namespace GaeBullBing.Presentation.Board
         {
             if (boardView == null)
                 throw new MissingReferenceException("PlayerBoardView has not been initialized with a BoardTilemapView.");
+        }
+
+        private void ApplyDirectionForDeparture(int tileIndex)
+        {
+            if (visualRenderer == null) return;
+            var normalized = (tileIndex % GaeBullBing.Core.Board.BoardState.DefaultTileCount +
+                              GaeBullBing.Core.Board.BoardState.DefaultTileCount) %
+                             GaeBullBing.Core.Board.BoardState.DefaultTileCount;
+            var line = normalized < 9 ? 0 : normalized < 18 ? 1 : normalized < 27 ? 2 : 3;
+            visualRenderer.sprite = line <= 1 ? backSprite : frontSprite;
+            visualRenderer.flipX = line == 1 || line == 2;
         }
     }
 }

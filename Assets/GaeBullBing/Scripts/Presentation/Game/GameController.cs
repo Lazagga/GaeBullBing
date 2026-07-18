@@ -352,6 +352,7 @@ namespace GaeBullBing.Presentation.Game
         private void Start()
         {
             playerView.Initialize(boardView, State.Player.CurrentTileIndex);
+            playerView.TileMoveStarted += monsterPresenter.SetPlayerTile;
             playerView.TileEntered += monsterPresenter.SetPlayerTile;
             monsterPresenter.SetPlayerTile(State.Player.CurrentTileIndex);
             diceHud.Bind(this);

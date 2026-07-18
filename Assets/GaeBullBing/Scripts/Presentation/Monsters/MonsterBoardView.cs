@@ -8,6 +8,7 @@ namespace GaeBullBing.Presentation.Monsters
     public sealed class MonsterBoardView : MonoBehaviour
     {
         [SerializeField, Min(0.01f)] private float stepDuration = 0.18f;
+        [SerializeField, Min(0f)] private float hopHeight = 0.18f;
         [SerializeField] private Vector3 positionOffset = new(0f, 0.22f, 0f);
 
         private BoardTilemapView boardView;
@@ -102,19 +103,21 @@ namespace GaeBullBing.Presentation.Monsters
                 var toIndex = (startTileIndex + step) % GaeBullBing.Core.Board.BoardState.DefaultTileCount;
                 var from = boardView.GetWorldPosition(fromIndex);
                 var to = boardView.GetWorldPosition(toIndex);
+                var previousTileIndex = CurrentTileIndex;
+                CurrentTileIndex = toIndex;
+                TileChanged?.Invoke(previousTileIndex, toIndex);
                 var elapsed = 0f;
 
                 while (elapsed < stepDuration)
                 {
                     elapsed += Time.deltaTime;
                     var progress = Mathf.Clamp01(elapsed / stepDuration);
-                    transform.position = Vector3.Lerp(from, to, Mathf.SmoothStep(0f, 1f, progress)) + positionOffset;
+                    var position = Vector3.Lerp(from, to, Mathf.SmoothStep(0f, 1f, progress)) + positionOffset;
+                    position.y += Mathf.Sin(progress * Mathf.PI) * hopHeight;
+                    transform.position = position;
                     yield return null;
                 }
-                var previousTileIndex = CurrentTileIndex;
-                CurrentTileIndex = toIndex;
                 transform.position = to + positionOffset;
-                TileChanged?.Invoke(previousTileIndex, toIndex);
             }
             isMoving = false;
             transform.position = boardView.GetWorldPosition(CurrentTileIndex) + positionOffset;
