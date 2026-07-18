@@ -2,6 +2,13 @@ using System.Collections.Generic;
 
 namespace GaeBullBing.Core.Towers
 {
+    public enum StoneExitAnimation
+    {
+        None,
+        FallOffBoard,
+        ShrinkOnZeroDamage
+    }
+
     public sealed class TowerState
     {
         public int InstanceId { get; set; }
@@ -17,5 +24,7 @@ namespace GaeBullBing.Core.Towers
         public float StoneDamageMultiplier { get; set; } = 1f;
         public int StoneBaseDamage { get; set; }
         public List<int> StoneTraversalTiles { get; } = new();
+        public StoneExitAnimation StoneExitAnimation { get; set; }
+        public int StoneExitTileIndex { get; set; } = -1;
     }
 }

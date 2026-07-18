@@ -46,7 +46,7 @@
             "target_count": 1,
             "attack_count": 1
       },
-      "base_effect_ids": []
+      "base_effect_ids": ["field_spread"]
   }
   ]
 }

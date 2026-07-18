@@ -4,8 +4,8 @@ namespace GaeBullBing.Core.Monsters
     {
         public int InstanceId { get; set; }
         public string DefinitionId { get; set; } = string.Empty;
-        public int CurrentHealth { get; set; }
-        public int MaxHealth { get; set; }
+        public float CurrentHealth { get; set; }
+        public float MaxHealth { get; set; }
         public int CurrentTileIndex { get; set; }
         public int MoveDistance { get; set; }
         public int DistanceTravelled { get; set; }

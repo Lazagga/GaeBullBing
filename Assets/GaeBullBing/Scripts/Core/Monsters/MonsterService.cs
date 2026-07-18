@@ -33,7 +33,7 @@ namespace GaeBullBing.Core.Monsters
             if (definition == null)
                 throw new ArgumentNullException(nameof(definition));
 
-            var maxHealth = Math.Max(1, (int)Math.Ceiling(definition.MaxHp * healthMultiplier));
+            var maxHealth = Math.Max(1f, definition.MaxHp * healthMultiplier);
             var monster = new MonsterState
             {
                 InstanceId = nextInstanceId++,

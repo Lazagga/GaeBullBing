@@ -20,11 +20,19 @@ namespace GaeBullBing.Presentation.Monsters
         private bool isMoving;
         private Vector3 visualHeightOffset = new(0f, .22f, 0f);
         private float healthBarY = .48f;
+        private Sprite frontSprite;
+        private Sprite backSprite;
 
         public int InstanceId { get; private set; }
         public event Action<int, int> TileChanged;
 
-        public void Initialize(int instanceId, BoardTilemapView view, int tileIndex, Vector3 baseVisualOffset)
+        public void Initialize(
+            int instanceId,
+            BoardTilemapView view,
+            int tileIndex,
+            Vector3 baseVisualOffset,
+            Sprite front,
+            Sprite back)
         {
             InstanceId = instanceId;
             CurrentTileIndex = tileIndex;
@@ -32,6 +40,9 @@ namespace GaeBullBing.Presentation.Monsters
             visualHeightOffset = baseVisualOffset;
             positionOffset = baseVisualOffset;
             spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+            frontSprite = front;
+            backSprite = back != null ? back : front;
+            ApplyDirectionForDeparture(tileIndex);
             transform.position = boardView.GetWorldPosition(tileIndex) + positionOffset;
             if (spriteRenderer != null && spriteRenderer.sprite != null)
                 healthBarY = Mathf.Max(.48f, spriteRenderer.sprite.bounds.max.y * spriteRenderer.transform.localScale.y + .08f);
@@ -80,7 +91,7 @@ namespace GaeBullBing.Presentation.Monsters
             if (healthFillRenderer != null) healthFillRenderer.sortingOrder = order + 2;
         }
 
-        public void UpdateHealth(int current, int max)
+        public void UpdateHealth(float current, float max)
         {
             var ratio = Mathf.Clamp01(max > 0 ? (float)current / max : 0f);
             healthFill.localScale = new Vector3(.46f * ratio, .055f, 1f);
@@ -105,6 +116,7 @@ namespace GaeBullBing.Presentation.Monsters
                 var toIndex = (startTileIndex + step) % GaeBullBing.Core.Board.BoardState.DefaultTileCount;
                 var from = boardView.GetWorldPosition(fromIndex);
                 var to = boardView.GetWorldPosition(toIndex);
+                ApplyDirectionForDeparture(fromIndex);
                 var previousTileIndex = CurrentTileIndex;
                 CurrentTileIndex = toIndex;
                 TileChanged?.Invoke(previousTileIndex, toIndex);
@@ -129,6 +141,7 @@ namespace GaeBullBing.Presentation.Monsters
         {
             if (fromTileIndex == toTileIndex) yield break;
             isMoving = true;
+            ApplyDirectionForDeparture(fromTileIndex);
             var from = boardView.GetWorldPosition(fromTileIndex);
             var to = boardView.GetWorldPosition(toTileIndex);
             CurrentTileIndex = toTileIndex;
@@ -141,6 +154,16 @@ namespace GaeBullBing.Presentation.Monsters
             }
             transform.position = to + positionOffset;
             isMoving = false;
+        }
+
+        private void ApplyDirectionForDeparture(int tileIndex)
+        {
+            if (spriteRenderer == null || frontSprite == null) return;
+            var tileCount = GaeBullBing.Core.Board.BoardState.DefaultTileCount;
+            var normalized = (tileIndex % tileCount + tileCount) % tileCount;
+            var line = normalized < 9 ? 0 : normalized < 18 ? 1 : normalized < 27 ? 2 : 3;
+            spriteRenderer.sprite = line <= 1 ? backSprite : frontSprite;
+            spriteRenderer.flipX = line == 1 || line == 2;
         }
 
         public IEnumerator PlayHit()

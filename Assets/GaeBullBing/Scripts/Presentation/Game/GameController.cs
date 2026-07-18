@@ -480,7 +480,7 @@ namespace GaeBullBing.Presentation.Game
                 if (monster.IsDead || monster.CurrentTileIndex != tileIndex) continue;
                 count++;
                 var definition = FindMonsterDefinition(monster.DefinitionId);
-                builder.Append($"{count}. {(definition == null ? monster.DefinitionId : definition.DisplayName)}  HP {monster.CurrentHealth}/{monster.MaxHealth}");
+                builder.Append($"{count}. {(definition == null ? monster.DefinitionId : definition.DisplayName)}  HP {Mathf.Max(0, Mathf.FloorToInt(monster.CurrentHealth))}/{Mathf.FloorToInt(monster.MaxHealth)}");
                 var statuses = BuildMonsterStatuses(monster);
                 if (!string.IsNullOrEmpty(statuses)) builder.Append($"\n   {statuses}");
                 builder.AppendLine();

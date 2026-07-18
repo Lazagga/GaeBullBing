@@ -13,7 +13,11 @@ namespace GaeBullBing.Presentation.Monsters
     {
         [SerializeField] private BoardTilemapView boardView;
         [SerializeField] private Sprite monsterSprite;
+        [SerializeField] private Sprite bearFrontSprite;
+        [SerializeField] private Sprite bearBackSprite;
         [SerializeField] private Sprite foxSprite;
+        [SerializeField] private Sprite squirrelFrontSprite;
+        [SerializeField] private Sprite squirrelBackSprite;
         [SerializeField] private MonsterDefinition[] monsterDefinitions;
         [SerializeField] private GameObject overflowPanel;
         [SerializeField] private Text overflowText;
@@ -36,23 +40,49 @@ namespace GaeBullBing.Presentation.Monsters
 
         public void Spawn(MonsterState state)
         {
-            var usePlayerAlignedArt = state.DefinitionId == "MON_002" && foxSprite != null;
+            GetMonsterSprites(state.DefinitionId, out var frontSprite, out var backSprite);
+            var usePlayerAlignedArt = frontSprite != null;
             var monsterObject = new GameObject($"Monster {state.InstanceId} ({state.DefinitionId})");
             monsterObject.transform.SetParent(transform, false);
             var visual = new GameObject("Visual"); visual.transform.SetParent(monsterObject.transform, false);
             visual.transform.localScale = usePlayerAlignedArt ? Vector3.one : new Vector3(.3f, .68f, 1f);
             var renderer = visual.AddComponent<SpriteRenderer>();
-            renderer.sprite = usePlayerAlignedArt ? foxSprite : monsterSprite;
+            renderer.sprite = usePlayerAlignedArt ? frontSprite : monsterSprite;
             var view = monsterObject.AddComponent<MonsterBoardView>();
             view.Initialize(
                 state.InstanceId,
                 boardView,
                 state.CurrentTileIndex,
-                usePlayerAlignedArt ? Vector3.zero : new Vector3(0f, .22f, 0f));
+                usePlayerAlignedArt ? Vector3.zero : new Vector3(0f, .22f, 0f),
+                usePlayerAlignedArt ? frontSprite : monsterSprite,
+                usePlayerAlignedArt ? backSprite : monsterSprite);
             view.TileChanged += OnMonsterTileChanged;
             view.UpdateHealth(state.CurrentHealth, state.MaxHealth);
             views.Add(state.InstanceId, view);
             states.Add(state.InstanceId, state);
+        }
+
+        private void GetMonsterSprites(string definitionId, out Sprite frontSprite, out Sprite backSprite)
+        {
+            switch (definitionId)
+            {
+                case "MON_001":
+                    frontSprite = bearFrontSprite;
+                    backSprite = bearBackSprite != null ? bearBackSprite : bearFrontSprite;
+                    return;
+                case "MON_002":
+                    frontSprite = foxSprite;
+                    backSprite = foxSprite;
+                    return;
+                case "MON_003":
+                    frontSprite = squirrelFrontSprite;
+                    backSprite = squirrelBackSprite != null ? squirrelBackSprite : squirrelFrontSprite;
+                    return;
+                default:
+                    frontSprite = null;
+                    backSprite = null;
+                    return;
+            }
         }
 
         public IEnumerator Move(MonsterMoveResult result)
@@ -142,7 +172,7 @@ namespace GaeBullBing.Presentation.Monsters
             var lines = new List<string>();
             foreach (var view in hidden)
                 if (states.TryGetValue(view.InstanceId, out var state))
-                    lines.Add($"{GetMonsterName(state.DefinitionId)}  {state.CurrentHealth}/{state.MaxHealth}");
+                    lines.Add($"{GetMonsterName(state.DefinitionId)}  {Mathf.Max(0, Mathf.FloorToInt(state.CurrentHealth))}/{Mathf.FloorToInt(state.MaxHealth)}");
             overflowText.text = string.Join("\n", lines);
         }
 
