@@ -6,7 +6,7 @@ namespace GaeBullBing.Presentation.Board
     {
         private const int BaseOrder = 1000;
         private const float Precision = 100f;
-        private const int TowerLayerOffset = 100;
+        private const int TowerFrontOffset = 30;
 
         public static int GetOrder(Vector3 worldPosition, int priority = 0)
         {
@@ -19,7 +19,7 @@ namespace GaeBullBing.Presentation.Board
             // On the right/back half (lines 1 and 2), towers occlude actors.
             // On the left/front half (lines 0 and 3), actors occlude towers.
             var towerIsInFront = tileIndex > 9 && tileIndex < 27;
-            return GetOrder(worldPosition, towerIsInFront ? TowerLayerOffset : -TowerLayerOffset);
+            return GetOrder(worldPosition, towerIsInFront ? TowerFrontOffset : 0);
         }
     }
 }

@@ -10,20 +10,19 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6659c42042a1024449a41dd8505788fa, type: 3}
-  m_Name: UPG_ELECTRIC_T3_02
+  m_Name: UPG_ELECTRIC_T2_03
   m_EditorClassIdentifier: GaeBullBing.Core::GaeBullBing.Core.Data.TowerUpgradeDefinition
-  id: UPG_ELECTRIC_T3_02
-  displayName: "TOW_04_\uC804\uAE30_T3_02"
-  description: "\uD53C\uD574\uB97C \uBC1B\uC740 \uC801\uC5D0\uAC8C \uAC10\uC804 \uC0C1\uD0DC\uC774\uC0C1(\uC601\uAD6C\uC9C0\uC18D)
-    \uBD80\uC5EC, \uAC10\uC804 \uC0C1\uD0DC\uC774\uC0C1 \uBCF4\uC720\uC911\uC778
-    \uC801\uC774 \uBC1B\uB294 \uD53C\uD574\uB7C9 30% \uC99D\uAC00"
+  id: UPG_ELECTRIC_T2_03
+  displayName: "TOW_04_\uC804\uAE30_T2_03"
+  description: "\uACF5\uACA9\uD55C \uD0C0\uC77C\uC758 \uC804\uC774 \uBC94\uC704 +1(\uC591\uC606\uC73C\uB85C
+    2\uCE78\uAE4C\uC9C0 \uC7A5\uD310 \uD37C\uC9D0)"
   element: 4
-  tier: 3
+  tier: 2
   weight: 1
   statModifiers:
   - Stat: damage
     Operation: add
-    Value: 20
+    Value: 10
   effects:
-  - Id: shock
+  - Id: spread_range_add
     Value: 1

@@ -37,8 +37,9 @@ namespace GaeBullBing.Presentation.Game
         [SerializeField] private TowerPresenter towerPresenter;
         [SerializeField] private TowerDefinition[] towerDefinitions;
         [SerializeField] private TowerUpgradeDefinition[] towerUpgradeDefinitions;
+        [SerializeField] private TileInfoPanelView tileInfoPanel;
         [SerializeField, Min(0f)] private float diceRevealDelay = 0.35f;
-        [SerializeField, Min(1)] private int cornerDamageBonus = 10;
+        [SerializeField, Range(0f, 1f)] private float cornerDamageRateBonus = .1f;
 
         private bool isBusy;
         private MonsterDatabase monsterDatabase;
@@ -48,6 +49,8 @@ namespace GaeBullBing.Presentation.Game
         private BoardTileSelectionView tileSelectionView;
         private bool pendingDiceTuning;
         private bool diceTuningComplete;
+        private Coroutine tileInfoCameraRoutine;
+        private bool tileInfoOpen;
 
         public GameState State { get; private set; }
         public GameSession Session { get; private set; }
@@ -261,6 +264,9 @@ namespace GaeBullBing.Presentation.Game
             tileSelectionView = boardView.GetComponent<BoardTileSelectionView>();
             if (tileSelectionView == null) tileSelectionView = boardView.gameObject.AddComponent<BoardTileSelectionView>();
             tileSelectionView.Initialize(boardView);
+            tileSelectionView.EnableInspection(ShowTileInformation, CloseTileInformation);
+            if (tileInfoPanel == null)
+                tileInfoPanel = FindFirstObjectByType<TileInfoPanelView>(FindObjectsInactive.Include);
         }
 
         private void LoadDifficultyPatternsFromJson()
@@ -291,6 +297,7 @@ namespace GaeBullBing.Presentation.Game
 
             var converted = new List<DifficultyPatternData>(source.wave_patterns.Length);
             var cumulativeRequiredKills = 0;
+            var cumulativeHealthMultiplier = 1f;
             foreach (var pattern in source.wave_patterns)
             {
                 if (pattern == null || pattern.spawn_pattern == null || pattern.spawn_pattern.Length == 0)
@@ -311,10 +318,11 @@ namespace GaeBullBing.Presentation.Game
                 converted.Add(new DifficultyPatternData
                 {
                     RequiredKills = cumulativeRequiredKills,
-                    HealthMultiplier = Mathf.Pow(healthMultiplierPerLevel, converted.Count),
+                    HealthMultiplier = cumulativeHealthMultiplier,
                     MonsterIds = pattern.spawn_pattern
                 });
                 cumulativeRequiredKills += killsPerLevel;
+                cumulativeHealthMultiplier *= healthMultiplierPerLevel;
             }
 
             if (converted.Count > 0) difficultyPatterns = converted.ToArray();
@@ -351,9 +359,179 @@ namespace GaeBullBing.Presentation.Game
 
         public void RollDiceAndMovePlayer()
         {
-            if (!isBusy)
-                StartCoroutine(RollAndMoveRoutine());
+            if (isBusy) return;
+            if (tileInfoOpen) StartCoroutine(CloseTileInformationThenRoll());
+            else StartCoroutine(RollAndMoveRoutine());
         }
+
+        private IEnumerator CloseTileInformationThenRoll()
+        {
+            isBusy = true;
+            HideTileInformation();
+            yield return cameraController.ReturnToOverview();
+            yield return RollAndMoveRoutine();
+        }
+
+        private void ShowTileInformation(int tileIndex)
+        {
+            if (isBusy || State.CurrentPhase != TurnPhase.PlayerTurnStart || tileInfoPanel == null)
+                return;
+
+            tileInfoOpen = true;
+            tileInfoPanel.Show(
+                $"타일 {tileIndex}",
+                BuildTileDescription(tileIndex),
+                BuildMonsterDescription(tileIndex));
+
+            if (tileInfoCameraRoutine != null) StopCoroutine(tileInfoCameraRoutine);
+            tileInfoCameraRoutine = StartCoroutine(FocusTileInformation(tileIndex));
+        }
+
+        private IEnumerator FocusTileInformation(int tileIndex)
+        {
+            yield return cameraController.FocusOnTile(tileIndex);
+            tileInfoCameraRoutine = null;
+        }
+
+        private void CloseTileInformation()
+        {
+            if (!tileInfoOpen) return;
+            HideTileInformation();
+            tileInfoCameraRoutine = StartCoroutine(ReturnFromTileInformation());
+        }
+
+        private void HideTileInformation()
+        {
+            tileInfoOpen = false;
+            tileInfoPanel?.Hide();
+            if (tileInfoCameraRoutine != null)
+            {
+                StopCoroutine(tileInfoCameraRoutine);
+                tileInfoCameraRoutine = null;
+            }
+        }
+
+        private IEnumerator ReturnFromTileInformation()
+        {
+            yield return cameraController.ReturnToOverview();
+            tileInfoCameraRoutine = null;
+        }
+
+        private string BuildTileDescription(int tileIndex)
+        {
+            if (tileIndex == 0 || tileIndex == 18)
+                return "[모서리 능력: 이동]\n원하는 타일을 선택하고 해당 타일까지 시계 방향으로 이동합니다.\n이동 중 출발지를 통과하면 주사위 강화가 발생합니다.";
+            if (tileIndex == 9 || tileIndex == 27)
+                return $"[모서리 능력: 전체 강화]\n불·얼음·물리·전기 중 하나를 선택해 해당 속성 타워의 공격력을 영구적으로 {cornerDamageRateBonus * 100f:0}% 증가시킵니다.\n이후 건설되는 타워에도 적용됩니다.";
+
+            var tile = State.Board.Tiles[tileIndex];
+            if (!tile.HasTower)
+            {
+                var buildable = FindTowerDefinition(tile.BuildTowerDefinitionId);
+                return buildable == null
+                    ? "[타워]\n설치된 타워가 없습니다."
+                    : $"[타워]\n설치된 타워가 없습니다.\n건설 가능: {buildable.DisplayName} ({GetElementName(buildable.Element)})";
+            }
+
+            var definition = FindTowerDefinition(tile.Tower.DefinitionId);
+            if (definition == null) return $"[타워]\n정의 없음: {tile.Tower.DefinitionId}";
+            var stats = CalculateDisplayStats(definition, tile.Tower);
+            var builder = new StringBuilder();
+            builder.AppendLine($"[타워] {definition.DisplayName}  T{tile.Tower.UpgradeTier}");
+            builder.AppendLine($"속성: {GetElementName(definition.Element)}");
+            builder.AppendLine($"공격력 {stats.damage}  |  사거리 ±{stats.range}타일");
+            builder.AppendLine($"대상 {stats.targets}  |  공격 횟수 {stats.attacks}");
+            builder.AppendLine();
+            builder.AppendLine("[적용된 업그레이드]");
+            if (tile.Tower.AppliedUpgradeIds.Count == 0) builder.Append("없음");
+            else foreach (var id in tile.Tower.AppliedUpgradeIds)
+            {
+                var upgrade = FindUpgradeDefinition(id);
+                builder.AppendLine(upgrade == null ? $"• {id}" : $"• T{upgrade.Tier} {upgrade.DisplayName}\n  {upgrade.Description}");
+            }
+            return builder.ToString().TrimEnd();
+        }
+
+        private string BuildMonsterDescription(int tileIndex)
+        {
+            var builder = new StringBuilder("[몬스터]\n");
+            var count = 0;
+            foreach (var monster in State.Monsters)
+            {
+                if (monster.IsDead || monster.CurrentTileIndex != tileIndex) continue;
+                count++;
+                var definition = FindMonsterDefinition(monster.DefinitionId);
+                builder.Append($"{count}. {(definition == null ? monster.DefinitionId : definition.DisplayName)}  HP {monster.CurrentHealth}/{monster.MaxHealth}");
+                var statuses = BuildMonsterStatuses(monster);
+                if (!string.IsNullOrEmpty(statuses)) builder.Append($"\n   {statuses}");
+                builder.AppendLine();
+            }
+            if (count == 0) builder.Append("없음");
+            return builder.ToString().TrimEnd();
+        }
+
+        private static string BuildMonsterStatuses(MonsterState monster)
+        {
+            var values = new List<string>();
+            if (monster.BurnStacks > 0) values.Add($"화상 {monster.BurnStacks}중첩");
+            if (monster.Shocked) values.Add("감전");
+            if (monster.FrozenMovesRemaining > 0) values.Add("빙결");
+            if (monster.StunnedMovesRemaining > 0) values.Add("이동 불가");
+            if (monster.KnockbackConsumed) values.Add("넉백 면역");
+            return string.Join(", ", values);
+        }
+
+        private (int damage, int range, int targets, int attacks) CalculateDisplayStats(TowerDefinition definition, TowerState tower)
+        {
+            var damageAdd = 0f; var damageMultiply = 1f;
+            var rangeAdd = 0f; var rangeMultiply = 1f;
+            var targetAdd = 0f; var targetMultiply = 1f;
+            var attackAdd = 0f; var attackMultiply = 1f;
+            float? damageSet = null, rangeSet = null, targetSet = null, attackSet = null;
+            foreach (var id in tower.AppliedUpgradeIds)
+            {
+                var upgrade = FindUpgradeDefinition(id); if (upgrade == null) continue;
+                foreach (var modifier in upgrade.StatModifiers)
+                {
+                    if (upgrade.Id == "UPG_ICE_T3_02" && modifier.Stat.Equals("damage", System.StringComparison.OrdinalIgnoreCase) && modifier.Operation.Equals("Multiply", System.StringComparison.OrdinalIgnoreCase)) continue;
+                    var multiply = modifier.Operation.Equals("Multiply", System.StringComparison.OrdinalIgnoreCase);
+                    var set = modifier.Operation.Equals("Set", System.StringComparison.OrdinalIgnoreCase);
+                    switch (modifier.Stat.ToLowerInvariant())
+                    {
+                        case "damage": if (set) damageSet = modifier.Value; else if (multiply) damageMultiply *= modifier.Value; else damageAdd += modifier.Value; break;
+                        case "range": if (set) rangeSet = modifier.Value; else if (multiply) rangeMultiply *= modifier.Value; else rangeAdd += modifier.Value; break;
+                        case "target_count": if (set) targetSet = modifier.Value; else if (multiply) targetMultiply *= modifier.Value; else targetAdd += modifier.Value; break;
+                        case "attack_count": if (set) attackSet = modifier.Value; else if (multiply) attackMultiply *= modifier.Value; else attackAdd += modifier.Value; break;
+                    }
+                }
+            }
+            return (
+                Mathf.Max(0, Mathf.RoundToInt(damageSet ?? (definition.Damage + damageAdd) * damageMultiply * (1f + State.PermanentAllTowerDamageRateBonus + State.GetPermanentTowerDamageRateBonus(definition.Element)))),
+                Mathf.Max(0, Mathf.RoundToInt(rangeSet ?? (definition.Range + rangeAdd) * rangeMultiply)),
+                Mathf.Max(1, Mathf.RoundToInt(targetSet ?? (definition.TargetCount + targetAdd) * targetMultiply)),
+                Mathf.Max(1, Mathf.RoundToInt(attackSet ?? (definition.AttackCount + attackAdd) * attackMultiply)));
+        }
+
+        private TowerUpgradeDefinition FindUpgradeDefinition(string id)
+        {
+            foreach (var definition in towerUpgradeDefinitions) if (definition != null && definition.Id == id) return definition;
+            return null;
+        }
+
+        private MonsterDefinition FindMonsterDefinition(string id)
+        {
+            foreach (var definition in monsterDefinitions) if (definition != null && definition.Id == id) return definition;
+            return null;
+        }
+
+        private static string GetElementName(TowerElement element) => element switch
+        {
+            TowerElement.Fire => "불",
+            TowerElement.Ice => "얼음",
+            TowerElement.Physics => "물리",
+            TowerElement.Electric => "전기",
+            _ => "없음"
+        };
 
         private IEnumerator RollAndMoveRoutine()
         {
@@ -365,7 +543,7 @@ namespace GaeBullBing.Presentation.Game
             var distance = Session.RollDiceAndMovePlayer();
             pendingDiceTuning |= startTileIndex + distance >= State.Board.TileCount;
             diceHud.SetResults(State.LastDiceResults[0], State.LastDiceResults[1]);
-            yield return dice3DPresenter.Roll(State.LastDiceResults[0], State.LastDiceResults[1]);
+            yield return dice3DPresenter.Roll(State.Dice, State.LastDiceResults[0], State.LastDiceResults[1]);
             yield return cameraController.FocusOn(playerView);
             yield return playerView.MoveSteps(startTileIndex, distance);
             BeginCurrentTileAction();
@@ -418,7 +596,7 @@ namespace GaeBullBing.Presentation.Game
         public void SelectCornerElement(TowerElement element)
         {
             if (State.CurrentPhase != TurnPhase.CornerSelection || element == TowerElement.None) return;
-            Session.AddPermanentTowerDamageBonus(element, cornerDamageBonus);
+            Session.AddPermanentTowerDamageRateBonus(element, cornerDamageRateBonus);
             cornerActionMenu.Hide(); StartCoroutine(CompleteTileActionRoutine());
         }
 
@@ -553,7 +731,7 @@ namespace GaeBullBing.Presentation.Game
                 pendingDiceTuning = false;
                 diceTuningComplete = false;
                 State.CurrentPhase = TurnPhase.DiceTuning;
-                diceTuningView.Show(State.Dice, ApplyDiceTuning);
+                diceTuningView.Show(State.Dice, ApplyDiceTuning, ApplyAllTowerDamageBoost);
                 yield return new WaitUntil(() => diceTuningComplete);
             }
             yield return ResolveEnemyTurnRoutine();
@@ -565,6 +743,12 @@ namespace GaeBullBing.Presentation.Game
                 return false;
             diceTuningComplete = true;
             return true;
+        }
+
+        private void ApplyAllTowerDamageBoost()
+        {
+            Session.AddPermanentAllTowerDamageRateBonus(.05f);
+            diceTuningComplete = true;
         }
 
         private IEnumerator ResolveEnemyTurnRoutine()

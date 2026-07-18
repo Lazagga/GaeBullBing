@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Tilemaps;
+using UnityEngine.EventSystems;
 
 namespace GaeBullBing.Presentation.Board
 {
@@ -12,6 +13,8 @@ namespace GaeBullBing.Presentation.Board
 
         private BoardTilemapView boardView;
         private Action<int> selected;
+        private Action<int> inspected;
+        private Action inspectionClosed;
         private int hoveredIndex = -1;
         private Color hoveredOriginalColor;
 
@@ -23,9 +26,15 @@ namespace GaeBullBing.Presentation.Board
             selected = onSelected;
         }
 
+        public void EnableInspection(Action<int> onInspected, Action onClosed)
+        {
+            inspected = onInspected;
+            inspectionClosed = onClosed;
+        }
+
         private void Update()
         {
-            if (selected == null || boardView == null || Mouse.current == null)
+            if (selected == null && inspected == null || boardView == null || Mouse.current == null)
                 return;
 
             var camera = UnityEngine.Camera.main;
@@ -38,8 +47,18 @@ namespace GaeBullBing.Presentation.Board
             var nearest = FindNearestTile(world);
             SetHovered(nearest);
 
-            if (nearest >= 0 && Mouse.current.leftButton.wasPressedThisFrame)
-                Select(nearest);
+            if (!Mouse.current.leftButton.wasPressedThisFrame ||
+                EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+                return;
+
+            if (selected != null)
+            {
+                if (nearest >= 0) Select(nearest);
+                return;
+            }
+
+            if (nearest >= 0) inspected?.Invoke(nearest);
+            else inspectionClosed?.Invoke();
         }
 
         public void EndSelection()

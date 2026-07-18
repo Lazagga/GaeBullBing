@@ -54,7 +54,7 @@ namespace GaeBullBing.Core.Game
             State.Player.CurrentTileIndex = 0;
             State.Round = 1;
             State.EscapedMonsterCount = 0;
-            State.PermanentTowerDamageBonuses.Clear();
+            State.ResetPermanentTowerBonuses();
             State.EscapeLimit = GameState.DefaultEscapeLimit;
             State.CurrentPhase = TurnPhase.PlayerTurnStart;
             State.LastDiceResults.Clear();
@@ -193,6 +193,7 @@ namespace GaeBullBing.Core.Game
             var rangeAdd = 0f; var rangeMultiply = 1f;
             var targetAdd = 0f; var targetMultiply = 1f;
             var attackAdd = 0f; var attackMultiply = 1f;
+            float? damageSet = null, rangeSet = null, targetSet = null, attackSet = null;
                 foreach (var id in tower.AppliedUpgradeIds)
                     foreach (var upgrade in upgrades)
                         if (upgrade != null && upgrade.Id == id)
@@ -200,23 +201,27 @@ namespace GaeBullBing.Core.Game
                             {
                                 if (upgrade.Id == "UPG_ICE_T3_02" && modifier.Stat.Equals("damage", StringComparison.OrdinalIgnoreCase) && modifier.Operation.Equals("Multiply", StringComparison.OrdinalIgnoreCase)) continue;
                                 var multiply = string.Equals(modifier.Operation, "Multiply", StringComparison.OrdinalIgnoreCase);
+                                var set = string.Equals(modifier.Operation, "Set", StringComparison.OrdinalIgnoreCase);
                                 switch (modifier.Stat.ToLowerInvariant())
                                 {
-                                    case "damage": if (multiply) damageMultiply *= modifier.Value; else damageAdd += modifier.Value; break;
-                                    case "range": if (multiply) rangeMultiply *= modifier.Value; else rangeAdd += modifier.Value; break;
-                                    case "target_count": if (multiply) targetMultiply *= modifier.Value; else targetAdd += modifier.Value; break;
-                                    case "attack_count": if (multiply) attackMultiply *= modifier.Value; else attackAdd += modifier.Value; break;
+                                    case "damage": if (set) damageSet = modifier.Value; else if (multiply) damageMultiply *= modifier.Value; else damageAdd += modifier.Value; break;
+                                    case "range": if (set) rangeSet = modifier.Value; else if (multiply) rangeMultiply *= modifier.Value; else rangeAdd += modifier.Value; break;
+                                    case "target_count": if (set) targetSet = modifier.Value; else if (multiply) targetMultiply *= modifier.Value; else targetAdd += modifier.Value; break;
+                                    case "attack_count": if (set) attackSet = modifier.Value; else if (multiply) attackMultiply *= modifier.Value; else attackAdd += modifier.Value; break;
                                 }
                             }
             return new TowerCombatStats(
-                Math.Max(0, (int)Math.Round((definition.Damage + State.GetPermanentTowerDamageBonus(definition.Element) + damageAdd) * damageMultiply)),
-                Math.Max(0, (int)Math.Round((definition.Range + rangeAdd) * rangeMultiply)),
-                Math.Max(1, (int)Math.Round((definition.TargetCount + targetAdd) * targetMultiply)),
-                Math.Max(1, (int)Math.Round((definition.AttackCount + attackAdd) * attackMultiply)));
+                Math.Max(0, (int)Math.Round(damageSet ?? (definition.Damage + damageAdd) * damageMultiply * (1f + State.PermanentAllTowerDamageRateBonus + State.GetPermanentTowerDamageRateBonus(definition.Element)))),
+                Math.Max(0, (int)Math.Round(rangeSet ?? (definition.Range + rangeAdd) * rangeMultiply)),
+                Math.Max(1, (int)Math.Round(targetSet ?? (definition.TargetCount + targetAdd) * targetMultiply)),
+                Math.Max(1, (int)Math.Round(attackSet ?? (definition.AttackCount + attackAdd) * attackMultiply)));
         }
 
-        public void AddPermanentTowerDamageBonus(TowerElement element, int amount) =>
-            State.AddPermanentTowerDamageBonus(element, amount);
+        public void AddPermanentTowerDamageRateBonus(TowerElement element, float amount) =>
+            State.AddPermanentTowerDamageRateBonus(element, amount);
+
+        public void AddPermanentAllTowerDamageRateBonus(float amount) =>
+            State.AddPermanentAllTowerDamageRateBonus(amount);
 
         public void TeleportPlayer(int tileIndex)
         {

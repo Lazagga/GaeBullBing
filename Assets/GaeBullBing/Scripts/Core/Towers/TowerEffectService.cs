@@ -21,12 +21,14 @@ namespace GaeBullBing.Core.Towers
                 var towerTile = FindTowerTile(state, attack.TowerInstanceId); if (towerTile == null) continue;
                 var target = FindMonster(state, attack.TargetInstanceId); if (target == null) continue;
                 var upgrades = towerTile.Tower.AppliedUpgradeIds;
-                if (upgrades.Contains("UPG_FIRE_T2_01") || upgrades.Contains("UPG_FIRE_T3_01")) target.BurnStacks++;
+                if (upgrades.Contains("UPG_FIRE_T2_01")) target.BurnStacks++;
                 if (upgrades.Contains("UPG_ICE_T2_00") && target.FreezeImmuneLine < 0) target.FrozenMovesRemaining = 1;
                 if (upgrades.Contains("UPG_ELECTRIC_T3_02")) target.Shocked = true;
                 if (upgrades.Contains("UPG_PHYSICS_T3_02") && !target.KnockbackConsumed)
                 { target.KnockbackConsumed = true; target.CurrentTileIndex = (target.CurrentTileIndex + 35) % 36; target.DistanceTravelled = Math.Max(0, target.DistanceTravelled - 1); }
-                if (upgrades.Contains("UPG_FIRE_T2_00") || upgrades.Contains("UPG_FIRE_T3_01"))
+                if (upgrades.Contains("UPG_FIRE_T2_00"))
+                    DamageArea(state, target.CurrentTileIndex, attack.Damage, attack.TowerInstanceId, extra);
+                if (upgrades.Contains("UPG_FIRE_T3_01") && target.BurnStacks >= 10)
                     DamageArea(state, target.CurrentTileIndex, attack.Damage, attack.TowerInstanceId, extra);
                 if (upgrades.Contains("UPG_FIRE_T3_00"))
                     extra.AddRange(PlaceFireField(state, target.CurrentTileIndex, attack.TowerInstanceId));
@@ -35,7 +37,8 @@ namespace GaeBullBing.Core.Towers
                 if (target.IsDead) continue;
                 if (upgrades.Contains("UPG_ELECTRIC_T2_00")) SpreadStatuses(state, target);
                 if (upgrades.Contains("UPG_ELECTRIC_T2_02"))
-                    DamageTile(state,(target.CurrentTileIndex+1)%36,attack.Damage,attack.TowerInstanceId,extra);
+                    for (var distance = 1; distance <= 3; distance++)
+                        DamageTile(state,(target.CurrentTileIndex+distance)%36,attack.Damage,attack.TowerInstanceId,extra);
                 if (upgrades.Contains("UPG_ICE_T3_01") && state.Board.Tiles[target.CurrentTileIndex].IceTurnsRemaining>0)
                 { state.Board.Tiles[target.CurrentTileIndex].IceTurnsRemaining=0; DamageTile(state,target.CurrentTileIndex,attack.Damage,attack.TowerInstanceId,extra); }
                 if (upgrades.Contains("UPG_ICE_T3_02") && target.FrozenMovesRemaining>0) ApplyDamage(target,attack.Damage*4,attack.TowerInstanceId,extra);

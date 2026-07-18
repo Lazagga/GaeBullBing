@@ -13,6 +13,7 @@ namespace GaeBullBing.Presentation.Monsters
     {
         [SerializeField] private BoardTilemapView boardView;
         [SerializeField] private Sprite monsterSprite;
+        [SerializeField] private Sprite foxSprite;
         [SerializeField] private MonsterDefinition[] monsterDefinitions;
         [SerializeField] private GameObject overflowPanel;
         [SerializeField] private Text overflowText;
@@ -35,14 +36,19 @@ namespace GaeBullBing.Presentation.Monsters
 
         public void Spawn(MonsterState state)
         {
+            var usePlayerAlignedArt = state.DefinitionId == "MON_002" && foxSprite != null;
             var monsterObject = new GameObject($"Monster {state.InstanceId} ({state.DefinitionId})");
             monsterObject.transform.SetParent(transform, false);
             var visual = new GameObject("Visual"); visual.transform.SetParent(monsterObject.transform, false);
-            visual.transform.localScale = new Vector3(.3f, .68f, 1f);
+            visual.transform.localScale = usePlayerAlignedArt ? Vector3.one : new Vector3(.3f, .68f, 1f);
             var renderer = visual.AddComponent<SpriteRenderer>();
-            renderer.sprite = monsterSprite;
+            renderer.sprite = usePlayerAlignedArt ? foxSprite : monsterSprite;
             var view = monsterObject.AddComponent<MonsterBoardView>();
-            view.Initialize(state.InstanceId, boardView, state.CurrentTileIndex);
+            view.Initialize(
+                state.InstanceId,
+                boardView,
+                state.CurrentTileIndex,
+                usePlayerAlignedArt ? Vector3.zero : new Vector3(0f, .22f, 0f));
             view.TileChanged += OnMonsterTileChanged;
             view.UpdateHealth(state.CurrentHealth, state.MaxHealth);
             views.Add(state.InstanceId, view);

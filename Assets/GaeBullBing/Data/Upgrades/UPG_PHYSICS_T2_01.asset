@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: GaeBullBing.Core::GaeBullBing.Core.Data.TowerUpgradeDefinition
   id: UPG_PHYSICS_T2_01
   displayName: "TOW_03_\uBB3C\uB9AC_T2_01"
-  description: "3\uD134\uB2F9 \uD55C \uBC88 \uACF5\uACA9, \uD53C\uD574\uB7C9 9\uBC30
+  description: "3\uD134\uB2F9 \uD55C \uBC88 \uACF5\uACA9. \uD53C\uD574\uB7C9 9\uBC30
     \uC99D\uAC00"
   element: 3
   tier: 2

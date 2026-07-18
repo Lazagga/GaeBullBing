@@ -22,15 +22,27 @@ namespace GaeBullBing.Core.Game
         public List<DiceState> Dice { get; } = new();
         public List<int> LastDiceResults { get; } = new();
         public int LastMoveDistance { get; set; }
-        public Dictionary<TowerElement, int> PermanentTowerDamageBonuses { get; } = new();
+        public Dictionary<TowerElement, float> PermanentTowerDamageRateBonuses { get; } = new();
+        public float PermanentAllTowerDamageRateBonus { get; private set; }
 
-        public int GetPermanentTowerDamageBonus(TowerElement element) =>
-            PermanentTowerDamageBonuses.TryGetValue(element, out var value) ? value : 0;
+        public float GetPermanentTowerDamageRateBonus(TowerElement element) =>
+            PermanentTowerDamageRateBonuses.TryGetValue(element, out var value) ? value : 0f;
 
-        public void AddPermanentTowerDamageBonus(TowerElement element, int amount)
+        public void AddPermanentTowerDamageRateBonus(TowerElement element, float amount)
         {
-            if (element == TowerElement.None || amount <= 0) return;
-            PermanentTowerDamageBonuses[element] = GetPermanentTowerDamageBonus(element) + amount;
+            if (element == TowerElement.None || amount <= 0f) return;
+            PermanentTowerDamageRateBonuses[element] = GetPermanentTowerDamageRateBonus(element) + amount;
+        }
+
+        public void AddPermanentAllTowerDamageRateBonus(float amount)
+        {
+            if (amount > 0f) PermanentAllTowerDamageRateBonus += amount;
+        }
+
+        public void ResetPermanentTowerBonuses()
+        {
+            PermanentTowerDamageRateBonuses.Clear();
+            PermanentAllTowerDamageRateBonus = 0f;
         }
     }
 

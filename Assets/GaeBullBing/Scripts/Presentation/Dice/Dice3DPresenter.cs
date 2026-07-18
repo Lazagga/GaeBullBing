@@ -1,4 +1,6 @@
 using System.Collections;
+using System.Collections.Generic;
+using GaeBullBing.Core.Dice;
 using GaeBullBing.Presentation.Board;
 using UnityEngine;
 using UnityEngine.UI;
@@ -12,30 +14,37 @@ namespace GaeBullBing.Presentation.Dice
         [SerializeField] private float diceSize = 1f;
         [SerializeField] private RawImage display;
 
-        private const float StageOffset = 1000f;
-        private readonly Vector3 stageCenter = new(StageOffset, 0f, StageOffset);
+        private Vector3 stageCenter;
+        private static readonly Vector3[] FaceNormals =
+        {
+            Vector3.forward, Vector3.right, Vector3.up,
+            Vector3.down, Vector3.left, Vector3.back
+        };
         private DieView first;
         private DieView second;
-        private RenderTexture renderTexture;
-        private Material diceMaterial;
+        private GameObject stageRoot;
+        private Material firstDiceMaterial;
+        private Material secondDiceMaterial;
+        private Material blackPipMaterial;
+        private Material whitePipMaterial;
         private int lastPreset = -1;
 
-        public void Initialize(BoardTilemapView unusedBoardView)
+        public void Initialize(BoardTilemapView boardView)
         {
             if (first != null)
                 return;
             ConfigureDisplay();
+            stageCenter = boardView.GetBoardCenterWorld();
             CreateStage();
-            display.enabled = false;
         }
 
-        public IEnumerator Roll(int firstResult, int secondResult)
+        public IEnumerator Roll(IReadOnlyList<DiceState> diceStates, int firstResult, int secondResult)
         {
             var firstTarget = stageCenter + new Vector3(-0.65f, diceSize * 0.5f + 0.01f, 0f);
             var secondTarget = stageCenter + new Vector3(0.65f, diceSize * 0.5f + 0.01f, 0f);
-            first.Label.text = firstResult.ToString();
-            second.Label.text = secondResult.ToString();
-            display.enabled = true;
+            first.SetFaceValues(BuildPhysicalFaces(diceStates[0]));
+            second.SetFaceValues(BuildPhysicalFaces(diceStates[1]));
+            stageRoot.SetActive(true);
 
             var preset = SelectPreset();
             for (var elapsed = 0f; elapsed < rollDuration; elapsed += Time.deltaTime)
@@ -45,12 +54,12 @@ namespace GaeBullBing.Presentation.Dice
                 yield return null;
             }
 
-            SetFinalPose(first, firstTarget);
-            SetFinalPose(second, secondTarget);
+            SetFinalPose(first, ProjectToBoard(firstTarget), firstResult);
+            SetFinalPose(second, ProjectToBoard(secondTarget), secondResult);
             if (resultHoldDuration > 0f)
                 yield return new WaitForSeconds(resultHoldDuration);
 
-            display.enabled = false;
+            stageRoot.SetActive(false);
             yield return null;
         }
 
@@ -116,10 +125,10 @@ namespace GaeBullBing.Presentation.Dice
             var firstRebound = stageCenter + firstReboundOffset;
             var secondRebound = stageCenter + secondReboundOffset;
 
-            first.Transform.position = GetCollisionPathPosition(
-                t, firstStart, firstImpact, firstRebound, firstTarget);
-            second.Transform.position = GetCollisionPathPosition(
-                t, secondStart, secondImpact, secondRebound, secondTarget);
+            first.Transform.position = ProjectToBoard(GetCollisionPathPosition(
+                t, firstStart, firstImpact, firstRebound, firstTarget));
+            second.Transform.position = ProjectToBoard(GetCollisionPathPosition(
+                t, secondStart, secondImpact, secondRebound, secondTarget));
             first.Transform.rotation = Quaternion.Euler(firstTurns * (360f * t));
             second.Transform.rotation = Quaternion.Euler(secondTurns * (360f * t));
         }
@@ -154,10 +163,19 @@ namespace GaeBullBing.Presentation.Dice
             return landingPosition;
         }
 
-        private static void SetFinalPose(DieView die, Vector3 target)
+        private static void SetFinalPose(DieView die, Vector3 target, int result)
         {
             die.Transform.position = target;
-            die.Transform.rotation = Quaternion.identity;
+            var faceIndex = System.Array.IndexOf(die.FaceValues, result);
+            if (faceIndex < 0) faceIndex = 0;
+            die.Transform.rotation = Quaternion.FromToRotation(FaceNormals[faceIndex], Vector3.back);
+        }
+
+        private Vector3 ProjectToBoard(Vector3 position)
+        {
+            var offset = position - stageCenter;
+            return new Vector3(stageCenter.x + offset.x * .55f + offset.z * .3f,
+                stageCenter.y + offset.y * .48f + offset.z * .15f, -2f);
         }
 
         private void ConfigureDisplay()
@@ -166,82 +184,81 @@ namespace GaeBullBing.Presentation.Dice
                 throw new MissingReferenceException("Dice3DPresenter에 3D Dice Display UI가 연결되지 않았습니다.");
             display.enabled = false;
             display.raycastTarget = false;
-            display.color = Color.white;
-
-            renderTexture = new RenderTexture(768, 480, 24, RenderTextureFormat.ARGB32)
-            {
-                name = "Dice 3D Render Texture",
-                antiAliasing = 4
-            };
-            renderTexture.Create();
-            display.texture = renderTexture;
+            display.texture = null;
         }
 
         private void CreateStage()
         {
             var stage = new GameObject("3D Dice Animation Stage");
+            stageRoot = stage;
             stage.transform.SetParent(transform, false);
 
-            var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color");
-            diceMaterial = new Material(shader) { color = new Color(0.96f, 0.93f, 0.82f) };
-            first = CreateDie(stage.transform, "3D Dice 1");
-            second = CreateDie(stage.transform, "3D Dice 2");
+            var shader = Shader.Find("GaeBullBing/DiceOverlay");
+            if (shader == null) throw new MissingReferenceException("DiceOverlay shader was not found.");
+            firstDiceMaterial = new Material(shader) { color = new Color(0.96f, 0.96f, 0.93f) };
+            secondDiceMaterial = new Material(shader) { color = new Color(0.035f, 0.035f, 0.045f) };
+            blackPipMaterial = new Material(shader) { color = Color.black };
+            whitePipMaterial = new Material(shader) { color = Color.white };
+            firstDiceMaterial.renderQueue = 4100;
+            secondDiceMaterial.renderQueue = 4100;
+            blackPipMaterial.renderQueue = 4110;
+            whitePipMaterial.renderQueue = 4110;
+            first = CreateDie(stage.transform, "3D Dice 1", firstDiceMaterial, blackPipMaterial);
+            second = CreateDie(stage.transform, "3D Dice 2", secondDiceMaterial, whitePipMaterial);
 
-            var cameraObject = new GameObject("Dice Isometric Camera");
-            cameraObject.transform.SetParent(stage.transform, false);
-            cameraObject.transform.position = stageCenter + new Vector3(6f, 7.5f, -6f);
-            cameraObject.transform.LookAt(stageCenter);
-            var camera = cameraObject.AddComponent<UnityEngine.Camera>();
-            camera.orthographic = true;
-            camera.orthographicSize = 4.2f;
-            camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0f, 0f, 0f, 0f);
-            camera.targetTexture = renderTexture;
-            camera.nearClipPlane = 0.1f;
-            camera.farClipPlane = 30f;
+            stage.SetActive(false);
         }
 
-        private DieView CreateDie(Transform parent, string objectName)
+        private DieView CreateDie(Transform parent, string objectName, Material material, Material pipMaterial)
         {
             var die = GameObject.CreatePrimitive(PrimitiveType.Cube);
             die.name = objectName;
             die.transform.SetParent(parent, false);
-            die.transform.localScale = Vector3.one * diceSize;
-            die.GetComponent<MeshRenderer>().sharedMaterial = diceMaterial;
+            die.transform.localScale = Vector3.one * (diceSize * .48f);
+            die.GetComponent<MeshRenderer>().sharedMaterial = material;
             Destroy(die.GetComponent<BoxCollider>());
-            die.transform.position = stageCenter + new Vector3(0f, diceSize * 0.5f, 0f);
+            die.transform.position = ProjectToBoard(stageCenter + new Vector3(0f, diceSize * 0.5f, 0f));
 
-            var labelObject = new GameObject("Top Result");
-            labelObject.transform.SetParent(die.transform, false);
-            labelObject.transform.localPosition = new Vector3(0f, 0.505f, 0f);
-            labelObject.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            labelObject.transform.localScale = Vector3.one * 0.16f;
-            var label = labelObject.AddComponent<TextMesh>();
-            label.anchor = TextAnchor.MiddleCenter;
-            label.alignment = TextAlignment.Center;
-            label.fontSize = 64;
-            label.color = Color.black;
-            return new DieView(die.transform, label);
+            var faces = new DicePipFace[FaceNormals.Length];
+            for (var i = 0; i < faces.Length; i++)
+                faces[i] = DicePipFace.Create(die.transform, FaceNormals[i], pipMaterial, .105f);
+            return new DieView(die.transform, faces);
+        }
+
+        private static int[] BuildPhysicalFaces(DiceState dice)
+        {
+            var values = new List<int>(6);
+            for (var faceIndex = 0; faceIndex < dice.Faces.Length; faceIndex++)
+                for (var count = 0; count < dice.Weights[faceIndex]; count++)
+                    values.Add(dice.Faces[faceIndex]);
+            while (values.Count < 6) values.Add(dice.Faces[0]);
+            if (values.Count > 6) values.RemoveRange(6, values.Count - 6);
+            return values.ToArray();
         }
 
         private void OnDestroy()
         {
-            if (renderTexture != null)
-            {
-                if (display != null)
-                    display.texture = null;
-                renderTexture.Release();
-                Destroy(renderTexture);
-            }
-            if (diceMaterial != null)
-                Destroy(diceMaterial);
+            if (firstDiceMaterial != null)
+                Destroy(firstDiceMaterial);
+            if (secondDiceMaterial != null)
+                Destroy(secondDiceMaterial);
+            if (blackPipMaterial != null)
+                Destroy(blackPipMaterial);
+            if (whitePipMaterial != null)
+                Destroy(whitePipMaterial);
         }
 
         private sealed class DieView
         {
-            public DieView(Transform transform, TextMesh label) { Transform = transform; Label = label; }
+            public DieView(Transform transform, DicePipFace[] faces) { Transform = transform; Faces = faces; }
             public Transform Transform { get; }
-            public TextMesh Label { get; }
+            public DicePipFace[] Faces { get; }
+            public int[] FaceValues { get; private set; }
+            public void SetFaceValues(int[] values)
+            {
+                FaceValues = values;
+                for (var i = 0; i < Faces.Length; i++) Faces[i].SetValue(values[i]);
+            }
         }
     }
 }

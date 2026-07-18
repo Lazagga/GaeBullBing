@@ -17,23 +17,29 @@ namespace GaeBullBing.Presentation.Monsters
         private Transform healthFill;
         private Coroutine layoutRoutine;
         private bool isMoving;
+        private Vector3 visualHeightOffset = new(0f, .22f, 0f);
+        private float healthBarY = .48f;
 
         public int InstanceId { get; private set; }
         public event Action<int, int> TileChanged;
 
-        public void Initialize(int instanceId, BoardTilemapView view, int tileIndex)
+        public void Initialize(int instanceId, BoardTilemapView view, int tileIndex, Vector3 baseVisualOffset)
         {
             InstanceId = instanceId;
             CurrentTileIndex = tileIndex;
             boardView = view;
+            visualHeightOffset = baseVisualOffset;
+            positionOffset = baseVisualOffset;
             spriteRenderer = GetComponentInChildren<SpriteRenderer>();
             transform.position = boardView.GetWorldPosition(tileIndex) + positionOffset;
+            if (spriteRenderer != null && spriteRenderer.sprite != null)
+                healthBarY = Mathf.Max(.48f, spriteRenderer.sprite.bounds.max.y * spriteRenderer.transform.localScale.y + .08f);
             CreateHealthBar();
         }
 
         public void SetLayoutOffset(Vector3 offset)
         {
-            var targetOffset = offset + new Vector3(0f, .22f);
+            var targetOffset = offset + visualHeightOffset;
             if (layoutRoutine != null) StopCoroutine(layoutRoutine);
             layoutRoutine = StartCoroutine(AnimateLayoutOffset(targetOffset));
         }
@@ -64,7 +70,8 @@ namespace GaeBullBing.Presentation.Monsters
 
         private void LateUpdate()
         {
-            var order = BoardDepthSorting.GetOrder(transform.position);
+            // The sprite is raised for readability, but depth belongs to its ground position.
+            var order = BoardDepthSorting.GetOrder(transform.position - visualHeightOffset);
             if (spriteRenderer != null) spriteRenderer.sortingOrder = order;
             if (healthBackgroundRenderer != null) healthBackgroundRenderer.sortingOrder = order + 1;
             if (healthFillRenderer != null) healthFillRenderer.sortingOrder = order + 2;
@@ -74,13 +81,13 @@ namespace GaeBullBing.Presentation.Monsters
         {
             var ratio = Mathf.Clamp01(max > 0 ? (float)current / max : 0f);
             healthFill.localScale = new Vector3(.46f * ratio, .055f, 1f);
-            healthFill.localPosition = new Vector3(-.23f + .23f * ratio, .48f, 0f);
+            healthFill.localPosition = new Vector3(-.23f + .23f * ratio, healthBarY, 0f);
         }
 
         private void CreateHealthBar()
         {
             var sprite = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), new Vector2(.5f, .5f), 1f);
-            var back = new GameObject("Health Background"); back.transform.SetParent(transform, false); back.transform.localPosition = new Vector3(0,.48f); back.transform.localScale = new Vector3(.5f,.075f,1);
+            var back = new GameObject("Health Background"); back.transform.SetParent(transform, false); back.transform.localPosition = new Vector3(0,healthBarY); back.transform.localScale = new Vector3(.5f,.075f,1);
             healthBackgroundRenderer = back.AddComponent<SpriteRenderer>(); healthBackgroundRenderer.sprite = sprite; healthBackgroundRenderer.color = new Color(.12f,.12f,.12f,.9f);
             var fill = new GameObject("Health Fill"); fill.transform.SetParent(transform, false); healthFill = fill.transform;
             healthFillRenderer = fill.AddComponent<SpriteRenderer>(); healthFillRenderer.sprite = sprite; healthFillRenderer.color = new Color(.2f,.9f,.25f);

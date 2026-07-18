@@ -84,7 +84,7 @@ namespace GaeBullBing.Core.Towers
                 if (upgrades.Contains("UPG_PHYSICS_T3_00")) { ResolvePhysicsGuard(state,tile,stats.Damage,results); continue; }
                 if (upgrades.Contains("UPG_ELECTRIC_T3_00")) { ResolveLineAttack(state,tile,stats.Damage,results); continue; }
                 if (upgrades.Contains("UPG_ELECTRIC_T3_01")) { ResolveRandomElectric(state,tile,stats.Damage,results); continue; }
-                if (upgrades.Contains("UPG_ICE_T3_00")) stats = new TowerCombatStats(stats.Damage,stats.Range+3,int.MaxValue,stats.AttackCount);
+                if (upgrades.Contains("UPG_ICE_T3_00")) stats = new TowerCombatStats(stats.Damage,stats.Range,int.MaxValue,stats.AttackCount);
                 for (var attack = 0; attack < Math.Max(1, stats.AttackCount+tower.BonusAttackCount); attack++) ResolveTowerAttack(state,tile,stats,results);
                 if (upgrades.Contains("UPG_PHYSICS_T2_01")) tower.AttackCooldownRounds=2;
                 if (upgrades.Contains("UPG_ELECTRIC_T2_01")) BuffAttackedTileTower(state,results,tower.InstanceId);
@@ -98,7 +98,18 @@ namespace GaeBullBing.Core.Towers
         { var line=MonsterService.GetLine(tile.Index);foreach(var m in new List<MonsterState>(s.Monsters))if(MonsterService.GetLine(m.CurrentTileIndex)==line)Damage(m,damage,tile.Tower.InstanceId,r);s.Monsters.RemoveAll(m=>m.IsDead); }
         private static readonly Random EffectRandom=new Random();
         private static void ResolveRandomElectric(GameState s,TileState source,int damage,ICollection<TowerAttackResult> r)
-        { var tiles=s.Board.Tiles.FindAll(t=>t.HasTower&&t.Tower.DefinitionId=="TOW_04");if(tiles.Count==0)return;for(var i=0;i<3;i++){var chosen=tiles[EffectRandom.Next(tiles.Count)];foreach(var m in new List<MonsterState>(s.Monsters))if(m.CurrentTileIndex==chosen.Index)Damage(m,damage,source.Tower.InstanceId,r);}s.Monsters.RemoveAll(m=>m.IsDead); }
+        {
+            var tiles=s.Board.Tiles.FindAll(t=>t.HasTower&&t.Tower.DefinitionId=="TOW_04"&&t.Tower.InstanceId!=source.Tower.InstanceId);
+            if(tiles.Count==0)return;
+            var occupied=tiles.FindAll(t=>s.Monsters.Exists(m=>!m.IsDead&&m.CurrentTileIndex==t.Index));
+            var candidates=occupied.Count>0?occupied:tiles;
+            for(var i=0;i<3;i++)
+            {
+                var chosen=candidates[EffectRandom.Next(candidates.Count)];
+                foreach(var m in new List<MonsterState>(s.Monsters))if(m.CurrentTileIndex==chosen.Index)Damage(m,damage,source.Tower.InstanceId,r);
+            }
+            s.Monsters.RemoveAll(m=>m.IsDead);
+        }
         private static void BuffAttackedTileTower(GameState s,IEnumerable<TowerAttackResult> results,int source)
         { foreach(var a in results)if(a.TowerInstanceId==source){var m=s.Monsters.Find(x=>x.InstanceId==a.TargetInstanceId);if(m!=null){var t=s.Board.Tiles[m.CurrentTileIndex];if(t.HasTower){t.Tower.BonusAttackCount=1;t.Tower.BonusAttackTurnsRemaining=2;}}} }
         private static void Damage(MonsterState m,int damage,int tower,ICollection<TowerAttackResult> r)
