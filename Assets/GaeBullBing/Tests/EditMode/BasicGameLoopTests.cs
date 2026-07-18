@@ -185,6 +185,50 @@ namespace GaeBullBing.Tests.EditMode
         }
 
         [Test]
+        public void MonsterState_ReceiveDamageUsesPatternDefensePerLevel()
+        {
+            var difficulty = new GaeBullBing.Core.Monsters.DifficultyState
+            {
+                Level = 6,
+                DefensePerLevel = 20f
+            };
+            var monster = new GaeBullBing.Core.Monsters.MonsterState
+            {
+                CurrentHealth = 100f,
+                MaxHealth = 100f,
+                BaseDefense = 0f
+            };
+
+            var actualDamage = monster.ReceiveDamage(100f, difficulty);
+
+            Assert.That(monster.GetDefense(difficulty), Is.EqualTo(100f));
+            Assert.That(actualDamage, Is.EqualTo(50f).Within(0.0001f));
+            Assert.That(monster.CurrentHealth, Is.EqualTo(50f).Within(0.0001f));
+        }
+
+        [Test]
+        public void MonsterState_ReceiveDamageCombinesBaseDefenseAndShock()
+        {
+            var difficulty = new GaeBullBing.Core.Monsters.DifficultyState
+            {
+                Level = 1,
+                DefensePerLevel = 20f
+            };
+            var monster = new GaeBullBing.Core.Monsters.MonsterState
+            {
+                CurrentHealth = 200f,
+                MaxHealth = 200f,
+                BaseDefense = 20f,
+                Shocked = true
+            };
+
+            var actualDamage = monster.ReceiveDamage(120f, difficulty);
+
+            Assert.That(actualDamage, Is.EqualTo(130f).Within(0.0001f));
+            Assert.That(monster.CurrentHealth, Is.EqualTo(70f).Within(0.0001f));
+        }
+
+        [Test]
         public void MonsterService_RemovesMonsterAfterFullLap()
         {
             var state = new GameState();

@@ -75,9 +75,9 @@ namespace GaeBullBing.Core.Towers
                     SpreadStatuses(state, target, upgrades.Contains("UPG_ELECTRIC_T2_03") ? 2 : 1);
                 if (upgrades.Contains("UPG_ICE_T3_01") && state.Board.Tiles[target.CurrentTileIndex].IceTurnsRemaining>0)
                 { state.Board.Tiles[target.CurrentTileIndex].IceTurnsRemaining=0; DamageTile(state,target.CurrentTileIndex,attack.Damage,attack.TowerInstanceId,extra); }
-                if (upgrades.Contains("UPG_ICE_T3_02") && target.FrozenMovesRemaining>0) ApplyDamage(target,attack.Damage*4,attack.TowerInstanceId,extra);
+                if (upgrades.Contains("UPG_ICE_T3_02") && target.FrozenMovesRemaining>0) ApplyDamage(state,target,attack.Damage*4,attack.TowerInstanceId,extra);
                 if (upgrades.Contains("UPG_FIRE_T3_02") && target.BurnStacks>0)
-                    ApplyDamage(target, attack.Damage * .2f * target.BurnStacks, attack.TowerInstanceId, extra);
+                    ApplyDamage(state, target, attack.Damage * .2f * target.BurnStacks, attack.TowerInstanceId, extra);
             }
             state.Monsters.RemoveAll(m => m.IsDead); return extra;
         }
@@ -91,9 +91,9 @@ namespace GaeBullBing.Core.Towers
                 if (tile.FireTurnsRemaining > 0)
                 {
                     if (!monster.TouchedFireThisMove) monster.BurnStacks++;
-                    ApplyDamage(monster, BurnDamage(monster), 0, results);
+                    ApplyDamage(state, monster, BurnDamage(monster), 0, results);
                 }
-                if (monster.BurnStacks > 0) ApplyDamage(monster, BurnDamage(monster), 0, results);
+                if (monster.BurnStacks > 0) ApplyDamage(state, monster, BurnDamage(monster), 0, results);
                 monster.TouchedFireThisMove = false;
             }
             foreach (var tile in state.Board.Tiles) { if (tile.FireTurnsRemaining > 0) tile.FireTurnsRemaining--; if (tile.IceTurnsRemaining > 0) tile.IceTurnsRemaining--; }
@@ -171,16 +171,16 @@ namespace GaeBullBing.Core.Towers
             else tile.IceTurnsRemaining = Board.TileState.OneTurnEffectDuration;
             return results;
         }
-        private static void ApplyDamage(MonsterState m, float damage, int tower, ICollection<TowerAttackResult> results)
-        { var actual = m.Shocked ? damage * 1.3f : damage; m.CurrentHealth -= actual; results.Add(new TowerAttackResult(tower,m.InstanceId,actual,m.IsDead,targetTileIndex:m.CurrentTileIndex)); }
+        private static void ApplyDamage(GameState state, MonsterState monster, float damage, int tower, ICollection<TowerAttackResult> results)
+        { var actual = monster.ReceiveDamage(damage, state.Difficulty); results.Add(new TowerAttackResult(tower,monster.InstanceId,actual,monster.IsDead,targetTileIndex:monster.CurrentTileIndex)); }
         private static void DamageArea(GameState s,int center,float damage,int tower,ICollection<TowerAttackResult> r)
-        { foreach(var m in s.Monsters) if(Math.Min(Math.Abs(m.CurrentTileIndex-center),36-Math.Abs(m.CurrentTileIndex-center))<=1) ApplyDamage(m,damage,tower,r); }
+        { foreach(var m in s.Monsters) if(Math.Min(Math.Abs(m.CurrentTileIndex-center),36-Math.Abs(m.CurrentTileIndex-center))<=1) ApplyDamage(s,m,damage,tower,r); }
         private static void SpreadStatuses(GameState s, MonsterState source, int radius)
         { foreach(var m in s.Monsters) if(m.InstanceId!=source.InstanceId && Math.Min(Math.Abs(m.CurrentTileIndex-source.CurrentTileIndex),36-Math.Abs(m.CurrentTileIndex-source.CurrentTileIndex))<=radius) { m.BurnStacks=Math.Max(m.BurnStacks,source.BurnStacks); m.Shocked|=source.Shocked; if(source.FrozenMovesRemaining>0 && m.FreezeImmuneLine<0)m.FrozenMovesRemaining=source.FrozenMovesRemaining; } }
         private static MonsterState FindMonster(GameState s,int id)=>s.Monsters.Find(m=>m.InstanceId==id);
         private static Board.TileState FindTowerTile(GameState s,int id)=>s.Board.Tiles.Find(t=>t.HasTower&&t.Tower.InstanceId==id);
         private static void DamageTile(GameState s,int tile,float damage,int tower,ICollection<TowerAttackResult> r)
-        {foreach(var m in s.Monsters)if(m.CurrentTileIndex==tile)ApplyDamage(m,damage,tower,r);}
+        {foreach(var m in s.Monsters)if(m.CurrentTileIndex==tile)ApplyDamage(s,m,damage,tower,r);}
         private static void ResolveStones(GameState state, ICollection<TowerAttackResult> results)
         {
             foreach (var tile in state.Board.Tiles)
@@ -243,8 +243,7 @@ namespace GaeBullBing.Core.Towers
                 if (monster.IsDead || monster.CurrentTileIndex != sourceTower.StoneTileIndex) continue;
 
                 var fromTile = monster.CurrentTileIndex;
-                var actualDamage = monster.Shocked ? damage * 1.3f : damage;
-                monster.CurrentHealth -= actualDamage;
+                var actualDamage = monster.ReceiveDamage(damage, state.Difficulty);
                 var killed = monster.IsDead;
                 var knockbackApplied = appliesKnockback && !killed && !monster.KnockbackConsumed;
                 var toTile = fromTile;

@@ -17,3 +17,4 @@ MonoBehaviour:
   tier: 0
   maxHp: 420
   moveDistance: 1
+  baseDefense: 0

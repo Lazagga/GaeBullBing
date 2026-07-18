@@ -40,6 +40,7 @@ namespace GaeBullBing.Core.Monsters
                 DefinitionId = definition.Id,
                 CurrentHealth = maxHealth,
                 MaxHealth = maxHealth,
+                BaseDefense = definition.BaseDefense,
                 CurrentTileIndex = 0,
                 MoveDistance = definition.MoveDistance,
                 DistanceTravelled = 0

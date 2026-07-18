@@ -59,6 +59,7 @@ namespace GaeBullBing.Editor
                 serialized.FindProperty("tier").enumValueIndex = (int)tier;
                 serialized.FindProperty("maxHp").intValue = source.base_stats.max_hp;
                 serialized.FindProperty("moveDistance").intValue = source.base_stats.move_speed;
+                serialized.FindProperty("baseDefense").floatValue = source.base_stats.base_defense;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
 
                 definition.name = $"{source.id}_{SanitizeFileName(source.name)}";
@@ -85,6 +86,11 @@ namespace GaeBullBing.Editor
             if (source.base_stats == null || source.base_stats.max_hp < 1 || source.base_stats.move_speed < 1)
             {
                 Debug.LogError($"몬스터 {source.id}의 max_hp와 move_speed는 1 이상이어야 합니다.");
+                return false;
+            }
+            if (source.base_stats.base_defense < 0f)
+            {
+                Debug.LogError($"몬스터 {source.id}의 base_defense는 0 이상이어야 합니다.");
                 return false;
             }
             return true;
@@ -138,6 +144,7 @@ namespace GaeBullBing.Editor
         {
             public int max_hp;
             public int move_speed;
+            public float base_defense;
         }
     }
 

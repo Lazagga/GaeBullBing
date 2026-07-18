@@ -46,6 +46,7 @@ namespace GaeBullBing.Presentation.Game
         private DifficultyService difficultyService;
         private int killsPerDifficultyLevel = 10;
         private float healthMultiplierPerDifficultyLevel = 1.15f;
+        private float defensePerDifficultyLevel;
         private Dice3DPresenter dice3DPresenter;
         private StonePresenter stonePresenter;
         private string nextMonsterOverrideId;
@@ -267,7 +268,8 @@ namespace GaeBullBing.Presentation.Game
             difficultyService = new DifficultyService(
                 difficultyPatterns,
                 killsPerDifficultyLevel,
-                healthMultiplierPerDifficultyLevel);
+                healthMultiplierPerDifficultyLevel,
+                defensePerDifficultyLevel);
             difficultyService.Reset(State.Difficulty);
             dice3DPresenter = GetComponent<Dice3DPresenter>();
             if (dice3DPresenter == null)
@@ -307,6 +309,7 @@ namespace GaeBullBing.Presentation.Game
                 : 1f;
             killsPerDifficultyLevel = killsPerLevel;
             healthMultiplierPerDifficultyLevel = healthMultiplierPerLevel;
+            defensePerDifficultyLevel = Mathf.Max(0f, source.wavedata[0].defense_per_wave);
 
             System.Array.Sort(source.wave_patterns, (left, right) => left.level.CompareTo(right.level));
             var knownMonsterIds = new HashSet<string>();
@@ -358,6 +361,7 @@ namespace GaeBullBing.Presentation.Game
         {
             public int required_kills;
             public float multiplier;
+            public float defense_per_wave;
         }
 
         [System.Serializable]

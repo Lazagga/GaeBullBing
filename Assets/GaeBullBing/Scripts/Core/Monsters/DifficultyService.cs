@@ -17,6 +17,7 @@ namespace GaeBullBing.Core.Monsters
         public int KillCount { get; set; }
         public int Level { get; set; } = 1;
         public int PatternIndex { get; set; }
+        public float DefensePerLevel { get; set; }
     }
 
     public sealed class MonsterDatabase
@@ -42,11 +43,13 @@ namespace GaeBullBing.Core.Monsters
         private readonly int killsPerLevel;
         private readonly float healthMultiplierPerLevel;
         private readonly float baseHealthMultiplier;
+        private readonly float defensePerLevel;
 
         public DifficultyService(
             DifficultyPatternData[] patterns,
             int killsPerLevel = 0,
-            float healthMultiplierPerLevel = 0f)
+            float healthMultiplierPerLevel = 0f,
+            float defensePerLevel = 0f)
         {
             this.patterns = patterns ?? throw new ArgumentNullException(nameof(patterns));
             if (patterns.Length == 0)
@@ -58,6 +61,7 @@ namespace GaeBullBing.Core.Monsters
             this.healthMultiplierPerLevel = healthMultiplierPerLevel > 0f
                 ? healthMultiplierPerLevel
                 : InferHealthMultiplier(this.patterns);
+            this.defensePerLevel = Math.Max(0f, defensePerLevel);
             baseHealthMultiplier = Math.Max(0f, this.patterns[0].HealthMultiplier);
         }
 
@@ -66,6 +70,7 @@ namespace GaeBullBing.Core.Monsters
             state.KillCount = 0;
             state.Level = 1;
             state.PatternIndex = 0;
+            state.DefensePerLevel = defensePerLevel;
         }
 
         public void AddKills(DifficultyState state, int count)

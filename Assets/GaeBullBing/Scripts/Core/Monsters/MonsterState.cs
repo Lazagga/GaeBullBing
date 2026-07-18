@@ -1,3 +1,5 @@
+using System;
+
 namespace GaeBullBing.Core.Monsters
 {
     public sealed class MonsterState
@@ -6,6 +8,7 @@ namespace GaeBullBing.Core.Monsters
         public string DefinitionId { get; set; } = string.Empty;
         public float CurrentHealth { get; set; }
         public float MaxHealth { get; set; }
+        public float BaseDefense { get; set; }
         public int CurrentTileIndex { get; set; }
         public int MoveDistance { get; set; }
         public int DistanceTravelled { get; set; }
@@ -26,5 +29,22 @@ namespace GaeBullBing.Core.Monsters
         public bool PhysicsGuardTriggeredThisTurn { get; set; }
 
         public bool IsDead => CurrentHealth <= 0;
+
+        public float GetDefense(DifficultyState difficulty)
+        {
+            var levelBonus = difficulty == null
+                ? 0f
+                : Math.Max(0, difficulty.Level - 1) * Math.Max(0f, difficulty.DefensePerLevel);
+            return Math.Max(0f, BaseDefense + levelBonus);
+        }
+
+        public float ReceiveDamage(float rawDamage, DifficultyState difficulty)
+        {
+            var modifiedDamage = Math.Max(0f, rawDamage) * (Shocked ? 1.3f : 1f);
+            var defense = GetDefense(difficulty);
+            var actualDamage = modifiedDamage * 100f / (defense + 100f);
+            CurrentHealth -= actualDamage;
+            return actualDamage;
+        }
     }
 }
