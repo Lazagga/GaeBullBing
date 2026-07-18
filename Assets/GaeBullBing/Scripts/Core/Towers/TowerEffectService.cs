@@ -19,14 +19,17 @@ namespace GaeBullBing.Core.Towers
             foreach (var attack in attacks)
             {
                 var towerTile = FindTowerTile(state, attack.TowerInstanceId); if (towerTile == null) continue;
-                var target = FindMonster(state, attack.TargetInstanceId); if (target == null) continue;
+                var target = FindMonster(state, attack.TargetInstanceId);
                 var upgrades = towerTile.Tower.AppliedUpgradeIds;
-                var attackTileIndex = target.CurrentTileIndex;
+                var attackTileIndex = attack.TargetTileIndex >= 0
+                    ? attack.TargetTileIndex
+                    : target != null ? target.CurrentTileIndex : -1;
+                if (attackTileIndex < 0 || attackTileIndex >= state.Board.TileCount) continue;
                 var attackedTiles = new HashSet<int> { attackTileIndex };
-                if (upgrades.Contains("UPG_FIRE_T2_01")) target.BurnStacks++;
-                if (upgrades.Contains("UPG_ICE_T2_00") && target.FreezeImmuneLine < 0) target.FrozenMovesRemaining = 1;
-                if (upgrades.Contains("UPG_ELECTRIC_T3_02")) target.Shocked = true;
-                if (upgrades.Contains("UPG_PHYSICS_T3_02") && !target.KnockbackConsumed)
+                if (target != null && upgrades.Contains("UPG_FIRE_T2_01")) target.BurnStacks++;
+                if (target != null && upgrades.Contains("UPG_ICE_T2_00") && target.FreezeImmuneLine < 0) target.FrozenMovesRemaining = 1;
+                if (target != null && upgrades.Contains("UPG_ELECTRIC_T3_02")) target.Shocked = true;
+                if (target != null && upgrades.Contains("UPG_PHYSICS_T3_02") && !target.KnockbackConsumed)
                 {
                     var fromTile = target.CurrentTileIndex;
                     var toTile = fromTile == 0 ? 0 : (fromTile + 35) % 36;
@@ -34,14 +37,14 @@ namespace GaeBullBing.Core.Towers
                     target.CurrentTileIndex = toTile;
                     if (toTile != fromTile) target.DistanceTravelled = Math.Max(0, target.DistanceTravelled - 1);
                     extra.Add(new TowerAttackResult(attack.TowerInstanceId, target.InstanceId, 0, false,
-                        true, fromTile, toTile));
+                        true, fromTile, toTile, attackTileIndex));
                 }
                 if (upgrades.Contains("UPG_FIRE_T2_00"))
                 {
                     AddAreaTiles(state, attackTileIndex, 1, attackedTiles);
                     DamageArea(state, attackTileIndex, attack.Damage, attack.TowerInstanceId, extra);
                 }
-                if (upgrades.Contains("UPG_FIRE_T3_01") && target.BurnStacks >= 10)
+                if (target != null && upgrades.Contains("UPG_FIRE_T3_01") && target.BurnStacks >= 10)
                 {
                     AddAreaTiles(state, attackTileIndex, 1, attackedTiles);
                     DamageArea(state, attackTileIndex, attack.Damage, attack.TowerInstanceId, extra);
@@ -50,7 +53,7 @@ namespace GaeBullBing.Core.Towers
                     PlaceFields(state, attackedTiles, true, attack.TowerInstanceId, extra);
                 if (upgrades.Contains("UPG_ICE_T2_01"))
                     PlaceFields(state, attackedTiles, false, attack.TowerInstanceId, extra);
-                if (target.IsDead) continue;
+                if (target == null || target.IsDead) continue;
                 if (upgrades.Contains("UPG_ELECTRIC_T2_00")) SpreadStatuses(state, target);
                 if (upgrades.Contains("UPG_ELECTRIC_T2_02"))
                     for (var distance = 1; distance <= 3; distance++)
@@ -130,7 +133,7 @@ namespace GaeBullBing.Core.Towers
             return results;
         }
         private static void ApplyDamage(MonsterState m, int damage, int tower, ICollection<TowerAttackResult> results)
-        { var actual = m.Shocked ? (int)Math.Ceiling(damage * 1.3f) : damage; m.CurrentHealth -= actual; results.Add(new TowerAttackResult(tower,m.InstanceId,actual,m.IsDead)); }
+        { var actual = m.Shocked ? (int)Math.Ceiling(damage * 1.3f) : damage; m.CurrentHealth -= actual; results.Add(new TowerAttackResult(tower,m.InstanceId,actual,m.IsDead,targetTileIndex:m.CurrentTileIndex)); }
         private static void DamageArea(GameState s,int center,int damage,int tower,ICollection<TowerAttackResult> r)
         { foreach(var m in s.Monsters) if(Math.Min(Math.Abs(m.CurrentTileIndex-center),36-Math.Abs(m.CurrentTileIndex-center))<=1) ApplyDamage(m,damage,tower,r); }
         private static void SpreadStatuses(GameState s, MonsterState source)
@@ -139,7 +142,44 @@ namespace GaeBullBing.Core.Towers
         private static Board.TileState FindTowerTile(GameState s,int id)=>s.Board.Tiles.Find(t=>t.HasTower&&t.Tower.InstanceId==id);
         private static void DamageTile(GameState s,int tile,int damage,int tower,ICollection<TowerAttackResult> r)
         {foreach(var m in s.Monsters)if(m.CurrentTileIndex==tile)ApplyDamage(m,damage,tower,r);}
-        private static void ResolveStones(GameState s,ICollection<TowerAttackResult> r)
-        {foreach(var tile in s.Board.Tiles){if(!tile.HasTower||!tile.Tower.StoneActive)continue;var t=tile.Tower;if(t.StoneTileIndex==0||t.StoneTileIndex==9||t.StoneTileIndex==18||t.StoneTileIndex==27){t.StoneActive=false;continue;}t.StoneTileIndex=(t.StoneTileIndex+35)%36;t.StoneDamageMultiplier-=.1f;var damage=(int)Math.Floor(t.StoneBaseDamage*t.StoneDamageMultiplier);if(damage<=0){t.StoneActive=false;continue;}DamageTile(s,t.StoneTileIndex,damage,t.InstanceId,r);}s.Monsters.RemoveAll(m=>m.IsDead);}
+        private static void ResolveStones(GameState state, ICollection<TowerAttackResult> results)
+        {
+            foreach (var tile in state.Board.Tiles)
+            {
+                if (!tile.HasTower || !tile.Tower.StoneActive) continue;
+                var stone = tile.Tower;
+                stone.StoneTraversalTiles.Clear();
+
+                // Resolve the whole roll in this turn. Ten steps is the natural
+                // damage-decay limit; reaching a corner ends it earlier.
+                for (var step = 0; step < 10 && stone.StoneActive; step++)
+                {
+                    if (IsCorner(stone.StoneTileIndex))
+                    {
+                        stone.StoneActive = false;
+                        break;
+                    }
+
+                    stone.StoneTileIndex = (stone.StoneTileIndex + state.Board.TileCount - 1) % state.Board.TileCount;
+                    var damage = (int)Math.Floor(stone.StoneBaseDamage * stone.StoneDamageMultiplier + .0001f);
+                    if (damage <= 0)
+                    {
+                        stone.StoneActive = false;
+                        break;
+                    }
+
+                    stone.StoneTraversalTiles.Add(stone.StoneTileIndex);
+                    DamageTile(state, stone.StoneTileIndex, damage, stone.InstanceId, results);
+                    stone.StoneDamageMultiplier = Math.Max(0f, stone.StoneDamageMultiplier - .1f);
+                    if (IsCorner(stone.StoneTileIndex)) stone.StoneActive = false;
+                }
+
+                stone.StoneActive = false;
+            }
+            state.Monsters.RemoveAll(monster => monster.IsDead);
+        }
+
+        private static bool IsCorner(int tileIndex) =>
+            tileIndex == 0 || tileIndex == 9 || tileIndex == 18 || tileIndex == 27;
     }
 }

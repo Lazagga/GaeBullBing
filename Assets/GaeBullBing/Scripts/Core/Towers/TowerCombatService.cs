@@ -25,7 +25,8 @@ namespace GaeBullBing.Core.Towers
     public readonly struct TowerAttackResult
     {
         public TowerAttackResult(int towerInstanceId, int targetInstanceId, int damage, bool killed,
-            bool knockbackApplied = false, int knockbackFromTile = -1, int knockbackToTile = -1)
+            bool knockbackApplied = false, int knockbackFromTile = -1, int knockbackToTile = -1,
+            int targetTileIndex = -1)
         {
             TowerInstanceId = towerInstanceId;
             TargetInstanceId = targetInstanceId;
@@ -34,6 +35,7 @@ namespace GaeBullBing.Core.Towers
             KnockbackApplied = knockbackApplied;
             KnockbackFromTile = knockbackFromTile;
             KnockbackToTile = knockbackToTile;
+            TargetTileIndex = targetTileIndex;
         }
 
         public int TowerInstanceId { get; }
@@ -43,8 +45,9 @@ namespace GaeBullBing.Core.Towers
         public bool KnockbackApplied { get; }
         public int KnockbackFromTile { get; }
         public int KnockbackToTile { get; }
+        public int TargetTileIndex { get; }
         public TowerAttackResult WithKnockback(int fromTile, int toTile) =>
-            new(TowerInstanceId, TargetInstanceId, Damage, Killed, true, fromTile, toTile);
+            new(TowerInstanceId, TargetInstanceId, Damage, Killed, true, fromTile, toTile, TargetTileIndex);
     }
 
     public sealed class TowerCombatService
@@ -122,7 +125,7 @@ namespace GaeBullBing.Core.Towers
         private static void BuffAttackedTileTower(GameState s,IEnumerable<TowerAttackResult> results,int source)
         { foreach(var a in results)if(a.TowerInstanceId==source){var m=s.Monsters.Find(x=>x.InstanceId==a.TargetInstanceId);if(m!=null){var t=s.Board.Tiles[m.CurrentTileIndex];if(t.HasTower){t.Tower.BonusAttackCount=1;t.Tower.BonusAttackTurnsRemaining=2;}}} }
         private static void Damage(MonsterState m,int damage,int tower,ICollection<TowerAttackResult> r)
-        {var actual=m.Shocked?(int)Math.Ceiling(damage*1.3):damage;m.CurrentHealth-=actual;r.Add(new TowerAttackResult(tower,m.InstanceId,actual,m.IsDead));}
+        {var actual=m.Shocked?(int)Math.Ceiling(damage*1.3):damage;m.CurrentHealth-=actual;r.Add(new TowerAttackResult(tower,m.InstanceId,actual,m.IsDead,targetTileIndex:m.CurrentTileIndex));}
 
         private static void ResolveTowerAttack(
             GameState state,
@@ -148,7 +151,8 @@ namespace GaeBullBing.Core.Towers
                 var actualDamage = target.Shocked ? (int)Math.Ceiling(stats.Damage * 1.3) : stats.Damage;
                 target.CurrentHealth -= actualDamage;
                 var killed = target.IsDead;
-                results.Add(new TowerAttackResult(tower.InstanceId, target.InstanceId, actualDamage, killed));
+                results.Add(new TowerAttackResult(tower.InstanceId, target.InstanceId, actualDamage, killed,
+                    targetTileIndex: target.CurrentTileIndex));
                 if (!killed)
                     tower.TargetInstanceIds.Add(target.InstanceId);
             }

@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using GaeBullBing.Core.Game;
 using GaeBullBing.Presentation.Board;
@@ -50,6 +51,28 @@ namespace GaeBullBing.Presentation.Towers
 
             foreach (var pair in views)
                 if (!activeIds.Contains(pair.Key)) pair.Value.gameObject.SetActive(false);
+        }
+
+        public IEnumerator PlayResolvedMovement(GameState state)
+        {
+            if (state == null || boardView == null) yield break;
+            foreach (var tile in state.Board.Tiles)
+            {
+                if (!tile.HasTower || tile.Tower.StoneTraversalTiles.Count == 0) continue;
+                var tower = tile.Tower;
+                if (!views.TryGetValue(tower.InstanceId, out var renderer)) continue;
+
+                renderer.gameObject.SetActive(true);
+                foreach (var tileIndex in tower.StoneTraversalTiles)
+                {
+                    var position = boardView.GetWorldPosition(tileIndex);
+                    renderer.transform.position = position;
+                    renderer.sortingOrder = BoardDepthSorting.GetOrder(position, 25);
+                    yield return new WaitForSeconds(0.07f);
+                }
+                renderer.gameObject.SetActive(false);
+                tower.StoneTraversalTiles.Clear();
+            }
         }
 
         private static Sprite CreateCircleSprite()

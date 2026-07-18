@@ -72,7 +72,9 @@ namespace GaeBullBing.Presentation.Monsters
         private void LateUpdate()
         {
             // The sprite is raised for readability, but depth belongs to its ground position.
-            var order = BoardDepthSorting.GetOrder(transform.position - visualHeightOffset);
+            var order = BoardDepthSorting.GetActorOrder(
+                transform.position - visualHeightOffset,
+                CurrentTileIndex);
             if (spriteRenderer != null) spriteRenderer.sortingOrder = order;
             if (healthBackgroundRenderer != null) healthBackgroundRenderer.sortingOrder = order + 1;
             if (healthFillRenderer != null) healthFillRenderer.sortingOrder = order + 2;

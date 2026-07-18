@@ -792,6 +792,7 @@ namespace GaeBullBing.Presentation.Game
             foreach (var attackResult in attackResults)
                 yield return monsterPresenter.ApplyAttack(attackResult);
             var statusResults = Session.ResolveMonsterTurnEndEffects();
+            yield return stonePresenter.PlayResolvedMovement(State);
             stonePresenter.Refresh(State);
             boardView.RefreshTileEffects(State.Board);
             foreach (var statusResult in statusResults)

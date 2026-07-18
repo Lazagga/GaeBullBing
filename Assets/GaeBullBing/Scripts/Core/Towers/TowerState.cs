@@ -16,5 +16,6 @@ namespace GaeBullBing.Core.Towers
         public int StoneTileIndex { get; set; }
         public float StoneDamageMultiplier { get; set; } = 1f;
         public int StoneBaseDamage { get; set; }
+        public List<int> StoneTraversalTiles { get; } = new();
     }
 }
