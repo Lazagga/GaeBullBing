@@ -33,10 +33,7 @@ namespace GaeBullBing.Core.Towers
                     SpreadTileField(state, attackTileIndex,
                         upgrades.Contains("UPG_ELECTRIC_T2_03") ? 2 : 1,
                         attack.TowerInstanceId, extra);
-                if (target != null && upgrades.Contains("UPG_FIRE_T2_01")) target.BurnStacks++;
-                if (target != null && upgrades.Contains("UPG_FIRE_T2_04")) target.BurnStacks *= 2;
-                if (target != null && upgrades.Contains("UPG_ICE_T2_00") && target.FreezeImmuneLine < 0) target.FrozenMovesRemaining = 1;
-                if (target != null && upgrades.Contains("UPG_ELECTRIC_T3_02")) target.Shocked = true;
+                if (target != null) ApplyOnHitDebuffs(tower, target);
                 if (target != null && !target.IsBoss && upgrades.Contains("UPG_PHYSICS_T3_02") &&
                     !target.KnockbackConsumed)
                 {
@@ -200,7 +197,25 @@ namespace GaeBullBing.Core.Towers
         }
         private static void ApplyDamage(GameState state, MonsterState monster, float damage, int tower, ICollection<TowerAttackResult> results,
             TowerAttackVisualKind visualKind = TowerAttackVisualKind.Projectile)
-        { var actual = monster.ReceiveDamage(damage, state.Difficulty); results.Add(new TowerAttackResult(tower,monster.InstanceId,actual,monster.IsDead,targetTileIndex:monster.CurrentTileIndex,visualKind:tower>0?visualKind:TowerAttackVisualKind.None)); }
+        {
+            var actual = monster.ReceiveDamage(damage, state.Difficulty);
+            if (tower > 0 && !monster.IsDead)
+            {
+                var sourceTile = FindTowerTile(state, tower);
+                if (sourceTile != null) ApplyOnHitDebuffs(sourceTile.Tower, monster);
+            }
+            results.Add(new TowerAttackResult(tower,monster.InstanceId,actual,monster.IsDead,targetTileIndex:monster.CurrentTileIndex,visualKind:tower>0?visualKind:TowerAttackVisualKind.None));
+        }
+
+        private static void ApplyOnHitDebuffs(TowerState tower, MonsterState target)
+        {
+            if (tower == null || target == null || target.IsDead) return;
+            if (HasEffect(tower, "burn", "UPG_FIRE_T2_01")) target.BurnStacks++;
+            if (HasEffect(tower, "double_burn", "UPG_FIRE_T2_04")) target.BurnStacks *= 2;
+            if (HasEffect(tower, "freeze", "UPG_ICE_T2_00") && target.FreezeImmuneLine < 0)
+                target.FrozenMovesRemaining = 1;
+            if (HasEffect(tower, "shock", "UPG_ELECTRIC_T3_02")) target.Shocked = true;
+        }
         private static void DamageArea(GameState s,int center,float damage,int tower,ICollection<TowerAttackResult> r)
         { foreach(var m in s.Monsters) if(Math.Min(Math.Abs(m.CurrentTileIndex-center),36-Math.Abs(m.CurrentTileIndex-center))<=1) ApplyDamage(s,m,damage,tower,r,TowerAttackVisualKind.None); }
         private static void SpreadStatuses(GameState s, MonsterState source, int radius)
@@ -274,6 +289,7 @@ namespace GaeBullBing.Core.Towers
                 var fromTile = monster.CurrentTileIndex;
                 var actualDamage = monster.ReceiveDamage(damage, state.Difficulty);
                 var killed = monster.IsDead;
+                if (!killed) ApplyOnHitDebuffs(sourceTower, monster);
                 var knockbackApplied = appliesKnockback && !monster.IsBoss && !killed &&
                     !monster.KnockbackConsumed;
                 var toTile = fromTile;

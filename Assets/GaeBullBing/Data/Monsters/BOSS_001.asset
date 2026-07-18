@@ -15,7 +15,7 @@ MonoBehaviour:
   id: BOSS_001
   displayName: "\uAE4C\uB9C8\uADC0"
   tier: 1
-  appearanceWave: 6
-  maxHp: 1000
+  appearanceWave: 8
+  maxHp: 1500
   moveDistance: 4
   baseDefense: 0

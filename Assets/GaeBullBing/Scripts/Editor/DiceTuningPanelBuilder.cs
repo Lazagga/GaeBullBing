@@ -96,7 +96,7 @@ namespace GaeBullBing.Editor
             textRect.anchoredPosition = Vector2.zero;
             var text = textObject.GetComponent<Text>();
             text.font = LoadUiFont();
-            text.fontSize = 18;
+            text.fontSize = 27;
             text.alignment = TextAnchor.MiddleCenter;
             text.color = Color.white;
             text.text = "뒤로가기";
@@ -139,7 +139,7 @@ namespace GaeBullBing.Editor
                 var textObject = CreateRect("Text", value.transform, Vector2.zero, size, typeof(CanvasRenderer), typeof(Text));
                 var text = textObject.GetComponent<Text>();
                 text.font = LoadUiFont();
-                text.fontSize = 26;
+                text.fontSize = 39;
                 text.alignment = TextAnchor.MiddleCenter;
                 text.color = Color.white;
                 text.raycastTarget = false;

@@ -39,7 +39,7 @@ namespace GaeBullBing.Editor
             image.raycastTarget = false;
             var view = root.AddComponent<TileInfoPanelView>();
 
-            var title = CreateText("Title", root.transform, 26, FontStyle.Bold, TextAnchor.MiddleLeft);
+            var title = CreateText("Title", root.transform, 39, FontStyle.Bold, TextAnchor.MiddleLeft);
             SetRect(title.rectTransform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(18f, -18f), new Vector2(-36f, 52f), new Vector2(0f, 1f));
             title.color = new Color(1f, .84f, .28f);
 
@@ -49,10 +49,10 @@ namespace GaeBullBing.Editor
             dividerImage.raycastTarget = false;
             SetRect(divider.GetComponent<RectTransform>(), new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(18f, -72f), new Vector2(-36f, 2f), new Vector2(0f, 1f));
 
-            var tower = CreateText("Tower Information", root.transform, 18, FontStyle.Normal, TextAnchor.UpperLeft);
+            var tower = CreateText("Tower Information", root.transform, 27, FontStyle.Normal, TextAnchor.UpperLeft);
             tower.resizeTextForBestFit = true;
-            tower.resizeTextMinSize = 12;
-            tower.resizeTextMaxSize = 18;
+            tower.resizeTextMinSize = 18;
+            tower.resizeTextMaxSize = 27;
             SetRect(tower.rectTransform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(18f, -88f), new Vector2(-36f, 330f), new Vector2(0f, 1f));
 
             var monsterBox = CreateUiObject("Monster Background", root.transform);
@@ -61,13 +61,13 @@ namespace GaeBullBing.Editor
             monsterImage.raycastTarget = false;
             SetRect(monsterBox.GetComponent<RectTransform>(), new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(14f, 40f), new Vector2(-28f, 178f), new Vector2(0f, 0f));
 
-            var monsters = CreateText("Monster Information", monsterBox.transform, 18, FontStyle.Normal, TextAnchor.UpperLeft);
+            var monsters = CreateText("Monster Information", monsterBox.transform, 27, FontStyle.Normal, TextAnchor.UpperLeft);
             monsters.resizeTextForBestFit = true;
-            monsters.resizeTextMinSize = 12;
-            monsters.resizeTextMaxSize = 18;
+            monsters.resizeTextMinSize = 18;
+            monsters.resizeTextMaxSize = 27;
             SetRect(monsters.rectTransform, Vector2.zero, Vector2.one, new Vector2(12f, 12f), new Vector2(-24f, -24f), Vector2.zero);
 
-            var hint = CreateText("Hint", root.transform, 14, FontStyle.Italic, TextAnchor.MiddleRight);
+            var hint = CreateText("Hint", root.transform, 21, FontStyle.Italic, TextAnchor.MiddleRight);
             hint.text = "다른 타일 선택 · 바깥 클릭으로 닫기";
             hint.color = new Color(1f, 1f, 1f, .55f);
             SetRect(hint.rectTransform, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(18f, 8f), new Vector2(-36f, 26f), new Vector2(0f, 0f));

@@ -50,6 +50,7 @@ namespace GaeBullBing.Presentation.UI
             root.SetActive(true);
             elementRoot.SetActive(true);
             root.SetActive(true); teleportRoot.SetActive(false); title.text = "강화할 속성 선택";
+            title.color = Color.white;
             Bind(fireButton, TowerElement.Fire, selected); Bind(iceButton, TowerElement.Ice, selected);
             Bind(physicsButton, TowerElement.Physics, selected); Bind(electricButton, TowerElement.Electric, selected);
             SetLabel(fireButton, "불"); SetLabel(iceButton, "얼음");
@@ -75,7 +76,12 @@ namespace GaeBullBing.Presentation.UI
         private void SetElementButtons(bool active)
         { fireButton.gameObject.SetActive(active); iceButton.gameObject.SetActive(active); physicsButton.gameObject.SetActive(active); electricButton.gameObject.SetActive(active); }
         private static void SetLabel(Button button, string value)
-        { var label = button.GetComponentInChildren<Text>(); if (label != null) label.text = value; }
+        {
+            var label = button.GetComponentInChildren<Text>();
+            if (label == null) return;
+            label.text = value;
+            label.fontSize = 28;
+        }
 
     }
 }
