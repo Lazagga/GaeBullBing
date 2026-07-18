@@ -363,6 +363,45 @@ namespace GaeBullBing.Tests.EditMode
         }
 
         [Test]
+        public void TowerDamage_AppliesMultipliersBeforeFlatBonuses()
+        {
+            var state = new GameState();
+            var session = CreateSession(state);
+            session.StartNewGame();
+            state.Board.Tiles[5].Tower = new GaeBullBing.Core.Towers.TowerState
+            {
+                InstanceId = 1,
+                DefinitionId = "TOW_01"
+            };
+            state.Board.Tiles[5].Tower.AppliedUpgradeIds.Add("UPG_TEST_DAMAGE_ORDER");
+            state.Monsters.Add(CreateMonster(1, 5, 100, 5));
+
+            var definition = ScriptableObject.CreateInstance<GaeBullBing.Core.Data.TowerDefinition>();
+            SetPrivateField(definition, "id", "TOW_01");
+            SetPrivateField(definition, "element", TowerElement.Fire);
+            SetPrivateField(definition, "damage", 10);
+            SetPrivateField(definition, "range", 3);
+            SetPrivateField(definition, "targetCount", 1);
+            SetPrivateField(definition, "attackCount", 1);
+
+            var upgrade = ScriptableObject.CreateInstance<GaeBullBing.Core.Data.TowerUpgradeDefinition>();
+            SetPrivateField(upgrade, "id", "UPG_TEST_DAMAGE_ORDER");
+            SetPrivateField(upgrade, "statModifiers", new[]
+            {
+                new GaeBullBing.Core.Data.TowerStatModifier { Stat = "damage", Operation = "Multiply", Value = 2f },
+                new GaeBullBing.Core.Data.TowerStatModifier { Stat = "damage", Operation = "Add", Value = 5f }
+            });
+            session.AddPermanentTowerDamageRateBonus(TowerElement.Fire, .5f);
+            session.AddPermanentTowerDamageFlatBonus(TowerElement.Fire, 3);
+
+            var results = session.ResolveTowerCombat(new[] { definition }, new[] { upgrade });
+
+            Assert.That(results[0].Damage, Is.EqualTo(38));
+            Object.DestroyImmediate(upgrade);
+            Object.DestroyImmediate(definition);
+        }
+
+        [Test]
         public void TowerCombat_PrioritizesExistingTargetBeforeCloserMonster()
         {
             var state = CreateCombatState();
@@ -421,6 +460,46 @@ namespace GaeBullBing.Tests.EditMode
 
             Assert.That(results, Has.Count.EqualTo(1));
             Assert.That(results[0].TowerInstanceId, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void ElectricTransferRangeUpgradeOnlyExpandsBuiltInTileFieldTransfer()
+        {
+            var state = new GameState();
+            new BoardService().Initialize(state.Board);
+            var tower = new GaeBullBing.Core.Towers.TowerState
+            {
+                InstanceId = 1,
+                DefinitionId = "TOW_04"
+            };
+            tower.AppliedUpgradeIds.Add("UPG_ELECTRIC_T2_00");
+            tower.AppliedUpgradeIds.Add("UPG_ELECTRIC_T2_02");
+            tower.AppliedUpgradeIds.Add("UPG_ELECTRIC_T2_03");
+            state.Board.Tiles[5].Tower = tower;
+            state.Board.Tiles[5].FireTurnsRemaining = TileState.OneTurnEffectDuration;
+
+            var target = CreateMonster(1, 5, 100, 5);
+            target.Shocked = true;
+            var adjacent = CreateMonster(2, 6, 100, 6);
+            var twoTilesAway = CreateMonster(3, 7, 100, 7);
+            var fourTilesAway = CreateMonster(4, 9, 100, 9);
+            state.Monsters.Add(target);
+            state.Monsters.Add(adjacent);
+            state.Monsters.Add(twoTilesAway);
+            state.Monsters.Add(fourTilesAway);
+
+            new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(
+                state,
+                new[]
+                {
+                    new GaeBullBing.Core.Towers.TowerAttackResult(1, 1, 10f, false, targetTileIndex: 5)
+                });
+
+            Assert.That(state.Board.Tiles[3].FireTurnsRemaining, Is.GreaterThan(0));
+            Assert.That(state.Board.Tiles[7].FireTurnsRemaining, Is.GreaterThan(0));
+            Assert.That(adjacent.Shocked, Is.True);
+            Assert.That(twoTilesAway.Shocked, Is.False);
+            Assert.That(fourTilesAway.CurrentHealth, Is.EqualTo(100f));
         }
 
         private static GameState CreateCombatState()

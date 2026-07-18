@@ -56,7 +56,7 @@ namespace GaeBullBing.Core.Towers
                 }
                 if (upgrades.Contains("UPG_ELECTRIC_T2_02"))
                 {
-                    var chainDistance = upgrades.Contains("UPG_ELECTRIC_T2_03") ? 4 : 3;
+                    const int chainDistance = 3;
                     for (var distance = 1; distance <= chainDistance; distance++)
                     {
                         var chainedTile = (attackTileIndex + distance) % state.Board.TileCount;
@@ -64,15 +64,13 @@ namespace GaeBullBing.Core.Towers
                         DamageTile(state, chainedTile, attack.Damage, attack.TowerInstanceId, extra);
                     }
                 }
-                if (upgrades.Contains("UPG_ELECTRIC_T2_03"))
-                    ExpandTileSet(state, attackedTiles, 1);
                 if (upgrades.Contains("UPG_FIRE_T3_00"))
                     PlaceFields(state, attackedTiles, true, attack.TowerInstanceId, extra);
                 if (upgrades.Contains("UPG_ICE_T2_01"))
                     PlaceFields(state, attackedTiles, false, attack.TowerInstanceId, extra);
                 if (target == null || target.IsDead) continue;
                 if (upgrades.Contains("UPG_ELECTRIC_T2_00"))
-                    SpreadStatuses(state, target, upgrades.Contains("UPG_ELECTRIC_T2_03") ? 2 : 1);
+                    SpreadStatuses(state, target, 1);
                 if (upgrades.Contains("UPG_ICE_T3_01") && state.Board.Tiles[target.CurrentTileIndex].IceTurnsRemaining>0)
                 { state.Board.Tiles[target.CurrentTileIndex].IceTurnsRemaining=0; DamageTile(state,target.CurrentTileIndex,attack.Damage,attack.TowerInstanceId,extra); }
                 if (upgrades.Contains("UPG_ICE_T3_02") && target.FrozenMovesRemaining>0) ApplyDamage(state,target,attack.Damage*4,attack.TowerInstanceId,extra);
@@ -111,13 +109,6 @@ namespace GaeBullBing.Core.Towers
             var tileCount = state.Board.TileCount;
             for (var offset = -radius; offset <= radius; offset++)
                 tiles.Add((centerTileIndex + offset + tileCount) % tileCount);
-        }
-
-        private static void ExpandTileSet(GameState state, ISet<int> tiles, int radius)
-        {
-            var source = new List<int>(tiles);
-            foreach (var tileIndex in source)
-                AddAreaTiles(state, tileIndex, radius, tiles);
         }
 
         private void PlaceFields(

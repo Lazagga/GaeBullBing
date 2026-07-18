@@ -43,7 +43,7 @@ namespace GaeBullBing.Presentation.Monsters
             frontSprite = front;
             backSprite = back != null ? back : front;
             ApplyDirectionForDeparture(tileIndex);
-            transform.position = boardView.GetWorldPosition(tileIndex) + positionOffset;
+            transform.position = GetStandingPosition(tileIndex);
             if (spriteRenderer != null && spriteRenderer.sprite != null)
                 healthBarY = Mathf.Max(.48f, spriteRenderer.sprite.bounds.max.y * spriteRenderer.transform.localScale.y + .08f);
             CreateHealthBar();
@@ -64,12 +64,12 @@ namespace GaeBullBing.Presentation.Monsters
                 elapsed += Time.deltaTime;
                 positionOffset = Vector3.Lerp(startOffset, targetOffset, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / .18f)));
                 if (!isMoving)
-                    transform.position = boardView.GetWorldPosition(CurrentTileIndex) + positionOffset;
+                    transform.position = GetStandingPosition(CurrentTileIndex);
                 yield return null;
             }
             positionOffset = targetOffset;
             if (!isMoving)
-                transform.position = boardView.GetWorldPosition(CurrentTileIndex) + positionOffset;
+                transform.position = GetStandingPosition(CurrentTileIndex);
             layoutRoutine = null;
         }
         public int CurrentTileIndex { get; private set; }
@@ -82,9 +82,14 @@ namespace GaeBullBing.Presentation.Monsters
 
         private void LateUpdate()
         {
+            // Player tile presses are visual-only, so stationary monsters must follow
+            // the pressed tile every frame without changing their logical tile index.
+            if (!isMoving && boardView != null)
+                transform.position = GetStandingPosition(CurrentTileIndex);
+
             // The sprite is raised for readability, but depth belongs to its ground position.
             var order = BoardDepthSorting.GetActorOrder(
-                transform.position - visualHeightOffset,
+                transform.position - visualHeightOffset - GetTileVisualOffset(CurrentTileIndex),
                 CurrentTileIndex);
             if (spriteRenderer != null) spriteRenderer.sortingOrder = order;
             if (healthBackgroundRenderer != null) healthBackgroundRenderer.sortingOrder = order + 1;
@@ -114,8 +119,8 @@ namespace GaeBullBing.Presentation.Monsters
             {
                 var fromIndex = (startTileIndex + step - 1) % GaeBullBing.Core.Board.BoardState.DefaultTileCount;
                 var toIndex = (startTileIndex + step) % GaeBullBing.Core.Board.BoardState.DefaultTileCount;
-                var from = boardView.GetWorldPosition(fromIndex);
-                var to = boardView.GetWorldPosition(toIndex);
+                var from = GetTileGroundPosition(fromIndex);
+                var to = GetTileGroundPosition(toIndex);
                 ApplyDirectionForDeparture(fromIndex);
                 var previousTileIndex = CurrentTileIndex;
                 CurrentTileIndex = toIndex;
@@ -134,7 +139,7 @@ namespace GaeBullBing.Presentation.Monsters
                 transform.position = to + positionOffset;
             }
             isMoving = false;
-            transform.position = boardView.GetWorldPosition(CurrentTileIndex) + positionOffset;
+            transform.position = GetStandingPosition(CurrentTileIndex);
         }
 
         public IEnumerator PlayKnockback(int fromTileIndex, int toTileIndex)
@@ -142,8 +147,8 @@ namespace GaeBullBing.Presentation.Monsters
             if (fromTileIndex == toTileIndex) yield break;
             isMoving = true;
             ApplyDirectionForDeparture(fromTileIndex);
-            var from = boardView.GetWorldPosition(fromTileIndex);
-            var to = boardView.GetWorldPosition(toTileIndex);
+            var from = GetTileGroundPosition(fromTileIndex);
+            var to = GetTileGroundPosition(toTileIndex);
             CurrentTileIndex = toTileIndex;
             TileChanged?.Invoke(fromTileIndex, toTileIndex);
             for (var elapsed = 0f; elapsed < stepDuration; elapsed += Time.deltaTime)
@@ -154,6 +159,21 @@ namespace GaeBullBing.Presentation.Monsters
             }
             transform.position = to + positionOffset;
             isMoving = false;
+        }
+
+        private Vector3 GetStandingPosition(int tileIndex)
+        {
+            return GetTileGroundPosition(tileIndex) + positionOffset;
+        }
+
+        private Vector3 GetTileGroundPosition(int tileIndex)
+        {
+            return boardView.GetWorldPosition(tileIndex) + GetTileVisualOffset(tileIndex);
+        }
+
+        private Vector3 GetTileVisualOffset(int tileIndex)
+        {
+            return boardView != null ? boardView.GetTileVisualWorldOffset(tileIndex) : Vector3.zero;
         }
 
         private void ApplyDirectionForDeparture(int tileIndex)

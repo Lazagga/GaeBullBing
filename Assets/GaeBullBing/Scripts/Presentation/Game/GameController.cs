@@ -384,10 +384,6 @@ namespace GaeBullBing.Presentation.Game
         private void OnPlayerTileEntered(int tileIndex)
         {
             monsterPresenter.SetPlayerTile(tileIndex);
-            if (tileIndex < 0 || tileIndex >= State.Board.TileCount) return;
-            var tile = State.Board.Tiles[tileIndex];
-            if (tile.HasTower && tile.Tower.AppliedUpgradeIds.Contains("UPG_PHYSICS_T2_04"))
-                Session.AddPermanentLineTowerDamageRateBonus(MonsterService.GetLine(tileIndex), .1f);
         }
 
         public void RollDiceAndMovePlayer()
@@ -568,11 +564,12 @@ namespace GaeBullBing.Presentation.Game
             }
             return (
                 Mathf.Max(0, Mathf.RoundToInt(damageSet ??
-                    (definition.Damage + damageAdd + State.GetPermanentTowerDamageFlatBonus(definition.Element)) * damageMultiply *
+                    definition.Damage * damageMultiply *
                     (1f + State.PermanentAllTowerDamageRateBonus +
                      State.GetPermanentTowerDamageRateBonus(definition.Element) +
                      State.GetPermanentLineTowerDamageRateBonus(MonsterService.GetLine(tile.Index)) +
-                     GetLineAuraDamageRateBonus(tile)))),
+                     GetLineAuraDamageRateBonus(tile)) +
+                    damageAdd + State.GetPermanentTowerDamageFlatBonus(definition.Element))),
                 Mathf.Max(0, Mathf.RoundToInt(rangeSet ?? (definition.Range + rangeAdd) * rangeMultiply)),
                 Mathf.Max(1, Mathf.RoundToInt(targetSet ?? (definition.TargetCount + targetAdd) * targetMultiply)),
                 Mathf.Max(1, Mathf.RoundToInt(attackSet ?? (definition.AttackCount + attackAdd) * attackMultiply)));
@@ -632,6 +629,7 @@ namespace GaeBullBing.Presentation.Game
             State.CurrentPhase = TurnPhase.TileAction;
             diceHud.SetBusy();
             var tile = State.Board.Tiles[State.Player.CurrentTileIndex];
+            ApplyArrivalTowerEffects(tile);
             ShowTileInformation(tile.Index, false, tile.HasTower || tile.CanBuildTower);
             if (TryOpenCornerAction(State.Player.CurrentTileIndex))
                 return;
@@ -645,6 +643,12 @@ namespace GaeBullBing.Presentation.Game
                 UnityEngine.Camera.main,
                 tile.HasTower,
                 OpenTowerChoices);
+        }
+
+        private void ApplyArrivalTowerEffects(TileState tile)
+        {
+            if (tile.HasTower && tile.Tower.AppliedUpgradeIds.Contains("UPG_PHYSICS_T2_04"))
+                Session.AddPermanentLineTowerDamageRateBonus(MonsterService.GetLine(tile.Index), .1f);
         }
 
         private bool TryOpenCornerAction(int tileIndex)
