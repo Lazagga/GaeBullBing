@@ -293,7 +293,26 @@ namespace GaeBullBing.Core.Game
                 if (definition != null)
                     stats[tile.Tower.InstanceId] = BuildCombatStats(definition, tile, upgrades);
             }
-            var attacks = towerCombatService.ResolveByTower(State, stats);
+            var combined = new System.Collections.Generic.List<TowerAttackResult>();
+            for (var tileIndex = State.Board.TileCount - 1; tileIndex >= 0; tileIndex--)
+            {
+                var tile = State.Board.Tiles[tileIndex];
+                if (!tile.HasTower || !stats.TryGetValue(tile.Tower.InstanceId, out var towerStats))
+                    continue;
+                var singleTowerStats = new System.Collections.Generic.Dictionary<int, TowerCombatStats>
+                {
+                    [tile.Tower.InstanceId] = towerStats
+                };
+                var attacks = towerCombatService.ResolveByTower(State, singleTowerStats);
+                foreach (var result in ResolveAttackEffects(attacks)) combined.Add(result);
+            }
+            ResolveBossVictory(combined);
+            return combined;
+        }
+
+        private System.Collections.Generic.IReadOnlyList<TowerAttackResult> ResolveAttackEffects(
+            System.Collections.Generic.IReadOnlyList<TowerAttackResult> attacks)
+        {
             var effects = towerEffectService.ResolveAfterAttacks(State, attacks);
             var combined = new System.Collections.Generic.List<TowerAttackResult>();
             var consumedEffects = new System.Collections.Generic.HashSet<int>();
@@ -314,7 +333,6 @@ namespace GaeBullBing.Core.Game
             }
             for (var index = 0; index < effects.Count; index++)
                 if (!consumedEffects.Contains(index)) combined.Add(effects[index]);
-            ResolveBossVictory(combined);
             return combined;
         }
 

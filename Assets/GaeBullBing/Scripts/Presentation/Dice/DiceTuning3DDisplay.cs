@@ -150,7 +150,11 @@ namespace GaeBullBing.Presentation.Dice
             CreateRenderTexture();
             var stage = new GameObject("Dice Tuning Render Stage");
             stage.transform.SetParent(transform, false);
-            var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color");
+            var shader = Shader.Find("Universal Render Pipeline/Unlit") ??
+                         Shader.Find("GaeBullBing/DiceOverlay") ??
+                         Shader.Find("Unlit/Color");
+            if (shader == null)
+                throw new MissingReferenceException("A dice tuning shader was not included in the build.");
             whiteMaterial = new Material(shader) { color = new Color(.96f, .96f, .93f) };
             blackMaterial = new Material(shader) { color = new Color(.035f, .035f, .045f) };
             blackPipMaterial = new Material(shader) { color = Color.black };

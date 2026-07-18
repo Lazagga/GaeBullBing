@@ -1312,7 +1312,7 @@ GameObject:
   - component: {fileID: 256295370}
   - component: {fileID: 256295372}
   m_Layer: 0
-  m_Name: Squirrel
+  m_Name: PlayerCharPortrait
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1327,16 +1327,16 @@ RectTransform:
   m_GameObject: {fileID: 256295368}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.2, y: 1.2, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 235352690}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0}
   m_AnchorMax: {x: 0.5, y: 0}
-  m_AnchoredPosition: {x: 350, y: 300}
-  m_SizeDelta: {x: 570, y: 600}
-  m_Pivot: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 300, y: 0}
+  m_SizeDelta: {x: 384, y: 580}
+  m_Pivot: {x: 0.5, y: 0}
 --- !u!114 &256295370
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1357,7 +1357,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: d4214823118a64a429d2fdb4bb5abfeb, type: 3}
+  m_Sprite: {fileID: -7943361301523246080, guid: cd817c8929435954aab9c6013e9699c5, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -4232,7 +4232,7 @@ GameObject:
   - component: {fileID: 642636918}
   - component: {fileID: 642636920}
   m_Layer: 0
-  m_Name: PlayerChar
+  m_Name: EnemiesPortrait
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4247,16 +4247,16 @@ RectTransform:
   m_GameObject: {fileID: 642636916}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: -1, y: 1, z: 1}
+  m_LocalScale: {x: 1.2, y: 1.2, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 235352690}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0}
   m_AnchorMax: {x: 0.5, y: 0}
-  m_AnchoredPosition: {x: -300, y: 345}
-  m_SizeDelta: {x: 510, y: 690}
-  m_Pivot: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: -300, y: 0}
+  m_SizeDelta: {x: 384, y: 580}
+  m_Pivot: {x: 0.5, y: 0}
 --- !u!114 &642636918
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4277,7 +4277,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 6ed6636626843df448a95ad4b3327f9c, type: 3}
+  m_Sprite: {fileID: 5300757227190793532, guid: cd817c8929435954aab9c6013e9699c5, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1

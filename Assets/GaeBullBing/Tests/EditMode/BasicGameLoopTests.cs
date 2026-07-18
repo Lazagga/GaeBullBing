@@ -463,6 +463,63 @@ namespace GaeBullBing.Tests.EditMode
         }
 
         [Test]
+        public void GameSession_ResolvesRearTowerSecondaryDamageBeforeFrontTowerTargets()
+        {
+            var state = new GameState();
+            var session = CreateSession(state);
+            session.StartNewGame();
+            state.Board.Tiles[3].Tower = new GaeBullBing.Core.Towers.TowerState
+            {
+                InstanceId = 1,
+                DefinitionId = "TOW_FRONT"
+            };
+            state.Board.Tiles[7].Tower = new GaeBullBing.Core.Towers.TowerState
+            {
+                InstanceId = 2,
+                DefinitionId = "TOW_REAR"
+            };
+            state.Board.Tiles[7].Tower.AppliedEffectIds.Add("explode");
+            state.Monsters.Add(CreateMonster(1, 6, 15, 6));
+            var front = CreateTowerDefinition("TOW_FRONT", 10, 10);
+            var rear = CreateTowerDefinition("TOW_REAR", 10, 10);
+
+            var results = session.ResolveTowerCombat(
+                new[] { front, rear },
+                System.Array.Empty<GaeBullBing.Core.Data.TowerUpgradeDefinition>());
+
+            Assert.That(state.Monsters, Is.Empty);
+            foreach (var result in results)
+                Assert.That(result.TowerInstanceId, Is.Not.EqualTo(1));
+            Object.DestroyImmediate(rear);
+            Object.DestroyImmediate(front);
+        }
+
+        [Test]
+        public void TowerCombat_DamagesFrozenMonsterNormally()
+        {
+            var state = new GameState();
+            var session = CreateSession(state);
+            session.StartNewGame();
+            state.Board.Tiles[5].Tower = new GaeBullBing.Core.Towers.TowerState
+            {
+                InstanceId = 1,
+                DefinitionId = "TOW_01"
+            };
+            var monster = CreateMonster(1, 5, 100, 5);
+            monster.FrozenMovesRemaining = 1;
+            state.Monsters.Add(monster);
+            var tower = CreateTowerDefinition("TOW_01", 10, 1);
+
+            session.ResolveTowerCombat(
+                new[] { tower },
+                System.Array.Empty<GaeBullBing.Core.Data.TowerUpgradeDefinition>());
+
+            Assert.That(monster.CurrentHealth, Is.EqualTo(90f));
+            Assert.That(monster.FrozenMovesRemaining, Is.EqualTo(1));
+            Object.DestroyImmediate(tower);
+        }
+
+        [Test]
         public void ElectricTransferRangeUpgradeOnlyExpandsBuiltInTileFieldTransfer()
         {
             var state = new GameState();
@@ -790,7 +847,10 @@ namespace GaeBullBing.Tests.EditMode
                 CurrentHealth = 6000,
                 MaxHealth = 6000,
                 CurrentTileIndex = 0,
-                MoveDistance = 4
+                MoveDistance = 4,
+                FrozenMovesRemaining = 1,
+                StunnedMovesRemaining = 1,
+                PhysicsGuardTriggeredThisTurn = true
             };
             state.Monsters.Add(boss);
 
@@ -801,6 +861,7 @@ namespace GaeBullBing.Tests.EditMode
             Assert.That(boss.CurrentTileIndex, Is.EqualTo(4));
             Assert.That(boss.BurnStacks, Is.EqualTo(0));
             Assert.That(boss.PhysicsGuardConsumed, Is.False);
+            Assert.That(boss.PhysicsGuardTriggeredThisTurn, Is.False);
         }
 
         [Test]

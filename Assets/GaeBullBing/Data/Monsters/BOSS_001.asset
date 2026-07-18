@@ -18,4 +18,4 @@ MonoBehaviour:
   appearanceWave: 8
   maxHp: 1500
   moveDistance: 4
-  baseDefense: 0
+  baseDefense: 150

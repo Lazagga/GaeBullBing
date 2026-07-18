@@ -994,12 +994,26 @@ namespace GaeBullBing.Presentation.Game
             }
 
             var attackResults = Session.ResolveTowerCombat(towerDefinitions, towerUpgradeDefinitions);
-            stonePresenter.Refresh(State);
             boardView.RefreshTileEffects(State.Board);
             var illuminatedLineTowerIds = new HashSet<int>();
             for (var attackIndex = 0; attackIndex < attackResults.Count; attackIndex++)
             {
                 var attackResult = attackResults[attackIndex];
+                if (attackResult.VisualKind == TowerAttackVisualKind.ChainLine)
+                {
+                    var chainTowerId = attackResult.TowerInstanceId;
+                    var chainResults = new List<TowerAttackResult>();
+                    while (attackIndex < attackResults.Count &&
+                           attackResults[attackIndex].VisualKind == TowerAttackVisualKind.ChainLine &&
+                           attackResults[attackIndex].TowerInstanceId == chainTowerId)
+                    {
+                        chainResults.Add(attackResults[attackIndex]);
+                        attackIndex++;
+                    }
+                    attackIndex--;
+                    yield return PlayAttackResultsTogether(chainResults, illuminatedLineTowerIds);
+                    continue;
+                }
                 if (attackResult.VisualKind != TowerAttackVisualKind.AreaTile)
                 {
                     yield return PlayAttackResult(attackResult, illuminatedLineTowerIds);
@@ -1025,6 +1039,7 @@ namespace GaeBullBing.Presentation.Game
                 FinishVictory();
                 yield break;
             }
+            stonePresenter.Refresh(State);
             var statusResults = Session.ResolveMonsterTurnEndEffects();
             var consumedStoneResults = new HashSet<int>();
             for (var resultIndex = 0; resultIndex < statusResults.Count; resultIndex++)
@@ -1123,9 +1138,36 @@ namespace GaeBullBing.Presentation.Game
             TowerAttackResult result,
             ISet<int> illuminatedLineTowerIds)
         {
+            var impactApplied = false;
             if (attackEffectPresenter != null)
-                yield return attackEffectPresenter.Play(State, result, illuminatedLineTowerIds);
-            yield return monsterPresenter.ApplyAttack(result);
+                yield return attackEffectPresenter.Play(State, result, illuminatedLineTowerIds, () =>
+                {
+                    impactApplied = true;
+                    monsterPresenter.ApplyAttackAtImpact(result);
+                });
+            if (!impactApplied)
+                monsterPresenter.ApplyAttackAtImpact(result);
+            yield return monsterPresenter.CompleteAttack(result);
+        }
+
+        private IEnumerator PlayAttackResultsTogether(
+            IReadOnlyList<TowerAttackResult> results,
+            ISet<int> illuminatedLineTowerIds)
+        {
+            if (results == null || results.Count == 0) yield break;
+            var impactApplied = false;
+            if (attackEffectPresenter != null)
+                yield return attackEffectPresenter.Play(State, results[0], illuminatedLineTowerIds, () =>
+                {
+                    impactApplied = true;
+                    foreach (var result in results)
+                        monsterPresenter.ApplyAttackAtImpact(result);
+                });
+            if (!impactApplied)
+                foreach (var result in results)
+                    monsterPresenter.ApplyAttackAtImpact(result);
+            foreach (var result in results)
+                yield return monsterPresenter.CompleteAttack(result);
         }
     }
 }

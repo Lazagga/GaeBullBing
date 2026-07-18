@@ -90,14 +90,14 @@ namespace GaeBullBing.Core.Monsters
                 if (monster.FreezeImmuneLine >= 0 && monster.FreezeImmuneLine != currentLine)
                     monster.FreezeImmuneLine = -1;
                 var remainingToBase = BoardState.DefaultTileCount - monster.DistanceTravelled;
-                var cannotMove = monster.FrozenMovesRemaining > 0 || monster.StunnedMovesRemaining > 0;
-                if (monster.FrozenMovesRemaining > 0) { monster.FrozenMovesRemaining--; monster.FreezeImmuneLine = currentLine; }
-                if (monster.StunnedMovesRemaining > 0) monster.StunnedMovesRemaining--;
                 var startTileIndex = monster.CurrentTileIndex;
                 monster.TouchedFireThisMove = false;
                 if (monster.IsBoss)
                 {
-                    var bossDistance = cannotMove ? 0 : Math.Min(monster.MoveDistance, remainingToBase);
+                    // The crow flies directly to its destination. It must never be held by
+                    // tile-entry stops (including the physics guard) or stale movement debuffs.
+                    monster.PhysicsGuardTriggeredThisTurn = false;
+                    var bossDistance = Math.Min(monster.MoveDistance, remainingToBase);
                     monster.DistanceTravelled += bossDistance;
                     monster.CurrentTileIndex = (monster.CurrentTileIndex + bossDistance) %
                         BoardState.DefaultTileCount;
@@ -107,6 +107,9 @@ namespace GaeBullBing.Core.Monsters
                     if (bossReachedBase) reachedBase.Add(monster);
                     continue;
                 }
+                var cannotMove = monster.FrozenMovesRemaining > 0 || monster.StunnedMovesRemaining > 0;
+                if (monster.FrozenMovesRemaining > 0) { monster.FrozenMovesRemaining--; monster.FreezeImmuneLine = currentLine; }
+                if (monster.StunnedMovesRemaining > 0) monster.StunnedMovesRemaining--;
                 ApplyFireTile(state, monster, monster.CurrentTileIndex);
 
                 var onIce = HasIce(state, monster.CurrentTileIndex);

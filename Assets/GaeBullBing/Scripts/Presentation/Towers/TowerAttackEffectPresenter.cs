@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System;
 using GaeBullBing.Core;
 using GaeBullBing.Core.Game;
 using GaeBullBing.Core.Monsters;
@@ -35,43 +36,59 @@ namespace GaeBullBing.Presentation.Towers
         public IEnumerator Play(
             GameState state,
             TowerAttackResult result,
-            ISet<int> illuminatedLineTowerIds)
+            ISet<int> illuminatedLineTowerIds,
+            Action onImpact = null)
         {
             if (state == null || boardView == null || result.TowerInstanceId <= 0)
+            {
+                onImpact?.Invoke();
                 yield break;
+            }
 
             if (!TryFindTower(state, result.TowerInstanceId, out var towerTileIndex, out var definitionId))
+            {
+                onImpact?.Invoke();
                 yield break;
+            }
 
             if (result.VisualKind == TowerAttackVisualKind.ChainLine)
             {
                 if (illuminatedLineTowerIds != null && !illuminatedLineTowerIds.Add(result.TowerInstanceId))
+                {
+                    onImpact?.Invoke();
                     yield break;
-                yield return PlayChainLine(towerTileIndex);
+                }
+                yield return PlayChainLine(towerTileIndex, onImpact);
                 yield break;
             }
 
             if (result.VisualKind == TowerAttackVisualKind.AreaTile && result.TargetTileIndex >= 0)
             {
                 yield return PlayAreaTiles(state, result.TowerInstanceId,
-                    new[] { result.TargetTileIndex });
+                    new[] { result.TargetTileIndex }, onImpact);
                 yield break;
             }
 
             if (result.VisualKind != TowerAttackVisualKind.Projectile || result.TargetTileIndex < 0)
+            {
+                onImpact?.Invoke();
                 yield break;
+            }
 
             var sprite = GetAttackSprite(definitionId);
             if (sprite != null)
                 yield return PlayProjectile(sprite, towerTileIndex, result.TargetTileIndex,
-                    definitionId == "TOW_03" ? physicsProjectileScale : 1f);
+                    definitionId == "TOW_03" ? physicsProjectileScale : 1f, onImpact);
+            else
+                onImpact?.Invoke();
         }
 
         private IEnumerator PlayProjectile(
             Sprite sprite,
             int sourceTileIndex,
             int targetTileIndex,
-            float visualScale)
+            float visualScale,
+            Action onImpact)
         {
             var effectObject = new GameObject("Tower Attack Effect");
             effectObject.transform.SetParent(transform, false);
@@ -98,6 +115,7 @@ namespace GaeBullBing.Presentation.Towers
             }
 
             effectObject.transform.position = target;
+            onImpact?.Invoke();
             var initialScale = effectObject.transform.localScale;
             for (var elapsed = 0f; elapsed < impactDuration; elapsed += Time.deltaTime)
             {
@@ -109,33 +127,51 @@ namespace GaeBullBing.Presentation.Towers
             Destroy(effectObject);
         }
 
-        private IEnumerator PlayChainLine(int towerTileIndex)
+        private IEnumerator PlayChainLine(int towerTileIndex, Action onImpact)
         {
-            if (electricChainLineSprite == null) yield break;
+            if (electricChainLineSprite == null)
+            {
+                onImpact?.Invoke();
+                yield break;
+            }
             var line = MonsterService.GetLine(towerTileIndex);
             var tileIndices = new List<int>();
             for (var tileIndex = 0; tileIndex < GaeBullBing.Core.Board.BoardState.DefaultTileCount; tileIndex++)
                 if (MonsterService.GetLine(tileIndex) != line) continue;
                 else tileIndices.Add(tileIndex);
-            yield return PlayTileIllumination(electricChainLineSprite, tileIndices, "Electric Chain Line");
+            yield return PlayTileIllumination(electricChainLineSprite, tileIndices, "Electric Chain Line", onImpact);
         }
 
         public IEnumerator PlayAreaTiles(
             GameState state,
             int towerInstanceId,
-            IReadOnlyList<int> tileIndices)
+            IReadOnlyList<int> tileIndices,
+            Action onImpact = null)
         {
-            if (state == null || tileIndices == null || tileIndices.Count == 0) yield break;
-            if (!TryFindTower(state, towerInstanceId, out _, out var definitionId)) yield break;
+            if (state == null || tileIndices == null || tileIndices.Count == 0)
+            {
+                onImpact?.Invoke();
+                yield break;
+            }
+            if (!TryFindTower(state, towerInstanceId, out _, out var definitionId))
+            {
+                onImpact?.Invoke();
+                yield break;
+            }
             var sprite = GetAreaTileSprite(definitionId);
-            if (sprite == null) yield break;
-            yield return PlayTileIllumination(sprite, tileIndices, $"{definitionId} Area Tile");
+            if (sprite == null)
+            {
+                onImpact?.Invoke();
+                yield break;
+            }
+            yield return PlayTileIllumination(sprite, tileIndices, $"{definitionId} Area Tile", onImpact);
         }
 
         private IEnumerator PlayTileIllumination(
             Sprite sprite,
             IReadOnlyList<int> tileIndices,
-            string objectName)
+            string objectName,
+            Action onImpact = null)
         {
             var renderers = new List<SpriteRenderer>();
             var uniqueTiles = new HashSet<int>();
@@ -156,14 +192,21 @@ namespace GaeBullBing.Presentation.Towers
                 renderers.Add(renderer);
             }
 
+            var impactInvoked = false;
             for (var elapsed = 0f; elapsed < chainLineDuration; elapsed += Time.deltaTime)
             {
                 var progress = Mathf.Clamp01(elapsed / chainLineDuration);
+                if (!impactInvoked && progress >= .5f)
+                {
+                    impactInvoked = true;
+                    onImpact?.Invoke();
+                }
                 var alpha = Mathf.Sin(progress * Mathf.PI);
                 foreach (var renderer in renderers)
                     renderer.color = new Color(1f, 1f, 1f, alpha);
                 yield return null;
             }
+            if (!impactInvoked) onImpact?.Invoke();
             foreach (var renderer in renderers)
                 if (renderer != null) Destroy(renderer.gameObject);
         }

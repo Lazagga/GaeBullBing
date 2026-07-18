@@ -33,6 +33,7 @@ namespace GaeBullBing.Presentation.Monsters
 
         private readonly Dictionary<int, MonsterBoardView> views = new();
         private readonly Dictionary<int, MonsterState> states = new();
+        private readonly Dictionary<int, float> displayedHealth = new();
         private readonly Dictionary<int, OverflowIndicatorView> indicators = new();
         private int playerTileIndex;
         private bool hasPlayer;
@@ -89,6 +90,7 @@ namespace GaeBullBing.Presentation.Monsters
             view.UpdateHealth(state.CurrentHealth, state.MaxHealth);
             views.Add(state.InstanceId, view);
             states.Add(state.InstanceId, state);
+            displayedHealth[state.InstanceId] = state.CurrentHealth;
         }
 
         private void GetMonsterSprites(string definitionId, out Sprite frontSprite, out Sprite backSprite,
@@ -145,6 +147,7 @@ namespace GaeBullBing.Presentation.Monsters
                 view.TileChanged -= OnMonsterTileChanged;
                 views.Remove(result.InstanceId);
                 states.Remove(result.InstanceId);
+                displayedHealth.Remove(result.InstanceId);
                 Destroy(view.gameObject);
             }
         }
@@ -187,22 +190,40 @@ namespace GaeBullBing.Presentation.Monsters
 
         public IEnumerator ApplyAttack(TowerAttackResult result)
         {
+            ApplyAttackAtImpact(result);
+            yield return CompleteAttack(result);
+        }
+
+        public void ApplyAttackAtImpact(TowerAttackResult result)
+        {
+            if (!views.TryGetValue(result.TargetInstanceId, out var view))
+                return;
+
+            if (states.TryGetValue(result.TargetInstanceId, out var state))
+            {
+                var health = displayedHealth.TryGetValue(result.TargetInstanceId, out var current)
+                    ? Mathf.Max(0f, current - result.Damage)
+                    : Mathf.Max(0f, state.CurrentHealth);
+                displayedHealth[result.TargetInstanceId] = health;
+                view.UpdateHealth(health, state.MaxHealth);
+            }
+            if (result.Damage > 0) StartCoroutine(view.PlayHit());
+        }
+
+        public IEnumerator CompleteAttack(TowerAttackResult result)
+        {
             if (!views.TryGetValue(result.TargetInstanceId, out var view))
                 yield break;
 
-            if (states.TryGetValue(result.TargetInstanceId, out var state)) view.UpdateHealth(state.CurrentHealth, state.MaxHealth);
-            Coroutine hitRoutine = null;
-            if (result.Damage > 0) hitRoutine = StartCoroutine(view.PlayHit());
             if (result.KnockbackApplied && result.KnockbackFromTile != result.KnockbackToTile)
                 yield return view.PlayKnockback(result.KnockbackFromTile, result.KnockbackToTile);
-            else if (hitRoutine != null)
-                yield return hitRoutine;
             if (result.Killed)
             {
                 var tile = view.CurrentTileIndex;
                 view.TileChanged -= OnMonsterTileChanged;
                 views.Remove(result.TargetInstanceId);
                 states.Remove(result.TargetInstanceId);
+                displayedHealth.Remove(result.TargetInstanceId);
                 Destroy(view.gameObject);
                 ReflowTile(tile);
             }
