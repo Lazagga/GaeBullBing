@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Collections.Generic;
 using GaeBullBing.Core.Board;
 using UnityEngine;
 using UnityEngine.Tilemaps;
@@ -11,8 +13,12 @@ namespace GaeBullBing.Presentation.Board
         [SerializeField] private TileBase frozenTile;
         [SerializeField] private TileBase igniteTile;
         [SerializeField] private bool buildOnAwake = true;
+        [SerializeField, Min(0f)] private float playerPressDepth = 0.1f;
+        [SerializeField, Min(0.01f)] private float playerPressDuration = 0.07f;
 
         private Tilemap tilemap;
+        private readonly Dictionary<int, Coroutine> pressRoutines = new();
+        private readonly float[] pressAmounts = new float[BoardState.DefaultTileCount];
 
         public Tilemap Tilemap => tilemap != null ? tilemap : tilemap = GetComponent<Tilemap>();
 
@@ -46,7 +52,10 @@ namespace GaeBullBing.Presentation.Board
 
             Tilemap.ClearAllTiles();
             for (var index = 0; index < BoardLayout.Cells.Count; index++)
+            {
                 Tilemap.SetTile(GetCellPosition(index), normalTile);
+                ApplyPressTransform(index);
+            }
         }
 
         public void RefreshTileEffects(BoardState board)
@@ -62,6 +71,7 @@ namespace GaeBullBing.Presentation.Board
                         ? frozenTile
                         : normalTile;
                 Tilemap.SetTile(GetCellPosition(index), tile);
+                ApplyPressTransform(index);
             }
 
             Tilemap.RefreshAllTiles();
@@ -79,6 +89,16 @@ namespace GaeBullBing.Presentation.Board
 
         public Vector3 GetWorldPosition(int tileIndex) =>
             Tilemap.GetCellCenterWorld(GetCellPosition(tileIndex));
+
+        public Vector3 GetPlayerStandWorldPosition(int tileIndex) =>
+            GetWorldPosition(tileIndex) + GetTileVisualWorldOffset(tileIndex);
+
+        public Vector3 GetTileVisualWorldOffset(int tileIndex)
+        {
+            if (tileIndex < 0 || tileIndex >= pressAmounts.Length)
+                return Vector3.zero;
+            return Tilemap.transform.TransformVector(Vector3.down * (playerPressDepth * pressAmounts[tileIndex]));
+        }
 
         public Vector3 GetBoardCenterWorld()
         {
@@ -108,10 +128,80 @@ namespace GaeBullBing.Presentation.Board
             return (Tilemap.CellToWorld(cell + inwardCellDirection) - Tilemap.CellToWorld(cell)).normalized;
         }
 
+        public void ResetPress(int tileIndex)
+        {
+            SetPressAmount(tileIndex, 0f, true);
+        }
+
+        public void ReleasePlayerTile(int tileIndex)
+        {
+            SetPressAmount(tileIndex, 0f, false);
+        }
+
         public void PlayPress(int tileIndex)
         {
-            // Sprite-frame press animation will be connected here later.
-            _ = GetCellPosition(tileIndex);
+            if (tileIndex < 0 || tileIndex >= pressAmounts.Length)
+                return;
+            if (pressRoutines.Remove(tileIndex, out var routine) && routine != null)
+                StopCoroutine(routine);
+            pressRoutines[tileIndex] = StartCoroutine(AnimatePressPulse(tileIndex));
+        }
+
+        private void SetPressAmount(int tileIndex, float target, bool instant)
+        {
+            if (tileIndex < 0 || tileIndex >= pressAmounts.Length)
+                return;
+            if (pressRoutines.Remove(tileIndex, out var routine) && routine != null)
+                StopCoroutine(routine);
+
+            if (instant)
+            {
+                pressAmounts[tileIndex] = target;
+                ApplyPressTransform(tileIndex);
+                return;
+            }
+
+            pressRoutines[tileIndex] = StartCoroutine(AnimatePress(tileIndex, target));
+        }
+
+        private IEnumerator AnimatePressPulse(int tileIndex)
+        {
+            yield return AnimatePressPhase(tileIndex, 1f);
+            yield return AnimatePressPhase(tileIndex, 0f);
+            pressRoutines.Remove(tileIndex);
+        }
+
+        private IEnumerator AnimatePress(int tileIndex, float target)
+        {
+            yield return AnimatePressPhase(tileIndex, target);
+            pressRoutines.Remove(tileIndex);
+        }
+
+        private IEnumerator AnimatePressPhase(int tileIndex, float target)
+        {
+            var start = pressAmounts[tileIndex];
+            var elapsed = 0f;
+            while (elapsed < playerPressDuration)
+            {
+                elapsed += Time.deltaTime;
+                var progress = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / playerPressDuration));
+                pressAmounts[tileIndex] = Mathf.Lerp(start, target, progress);
+                ApplyPressTransform(tileIndex);
+                yield return null;
+            }
+
+            pressAmounts[tileIndex] = target;
+            ApplyPressTransform(tileIndex);
+        }
+
+        private void ApplyPressTransform(int tileIndex)
+        {
+            var cell = GetCellPosition(tileIndex);
+            Tilemap.SetTileFlags(cell, TileFlags.None);
+            Tilemap.SetTransformMatrix(cell, Matrix4x4.TRS(
+                Vector3.down * (playerPressDepth * pressAmounts[tileIndex]),
+                Quaternion.identity,
+                Vector3.one));
         }
     }
 }

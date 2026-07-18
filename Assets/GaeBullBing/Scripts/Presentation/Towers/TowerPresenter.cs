@@ -16,6 +16,12 @@ namespace GaeBullBing.Presentation.Towers
         [SerializeField] private Sprite[] electricSprites = new Sprite[6];
         private readonly Dictionary<int, SpriteRenderer> towerViews = new();
 
+        private void LateUpdate()
+        {
+            foreach (var pair in towerViews)
+                PositionTower(pair.Key, pair.Value);
+        }
+
         public void SetTower(int tileIndex, TowerDefinition definition, int tier = 1)
         {
             if (!towerViews.TryGetValue(tileIndex, out var renderer))
@@ -26,7 +32,6 @@ namespace GaeBullBing.Presentation.Towers
                 towerViews.Add(tileIndex, renderer);
             }
 
-            var tilePosition = boardView.GetWorldPosition(tileIndex);
             var inwardDirection = boardView.GetInwardDirectionWorld(tileIndex);
             // Art direction names describe the tower's board-side position,
             // which is opposite to the direction from the tile toward center.
@@ -36,9 +41,17 @@ namespace GaeBullBing.Presentation.Towers
                 ? Color.white
                 : GetElementColor(definition.Element);
             renderer.transform.localScale = Vector3.one;
-            renderer.transform.position = tilePosition;
-            renderer.sortingOrder = BoardDepthSorting.GetTowerOrder(tilePosition, tileIndex);
+            PositionTower(tileIndex, renderer);
             renderer.gameObject.name = $"Tower {tileIndex} ({definition.Id})";
+        }
+
+        private void PositionTower(int tileIndex, SpriteRenderer renderer)
+        {
+            if (boardView == null || renderer == null)
+                return;
+            var tilePosition = boardView.GetWorldPosition(tileIndex);
+            renderer.transform.position = tilePosition + boardView.GetTileVisualWorldOffset(tileIndex);
+            renderer.sortingOrder = BoardDepthSorting.GetTowerOrder(tilePosition, tileIndex);
         }
 
         private Sprite GetTowerSprite(

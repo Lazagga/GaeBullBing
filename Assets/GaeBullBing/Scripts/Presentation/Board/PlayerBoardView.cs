@@ -47,6 +47,11 @@ namespace GaeBullBing.Presentation.Board
         {
             if (visualRenderer == null)
                 visualRenderer = transform.Find("Visual")?.GetComponent<SpriteRenderer>();
+            if (!isMoving && boardView != null)
+            {
+                transform.position = boardView.GetPlayerStandWorldPosition(currentTileIndex) + positionOffset;
+                CameraFollowPosition = transform.position;
+            }
             if (visualRenderer != null)
                 visualRenderer.sortingOrder = BoardDepthSorting.GetOrder(CameraFollowPosition, 20);
         }
@@ -55,7 +60,8 @@ namespace GaeBullBing.Presentation.Board
         {
             EnsureBoardView();
             currentTileIndex = tileIndex;
-            transform.position = boardView.GetWorldPosition(tileIndex) + positionOffset;
+            boardView.ResetPress(tileIndex);
+            transform.position = boardView.GetPlayerStandWorldPosition(tileIndex) + positionOffset;
             CameraFollowPosition = transform.position;
         }
 
@@ -77,7 +83,7 @@ namespace GaeBullBing.Presentation.Board
                 positionOffset = Vector3.Lerp(startOffset, targetOffset, progress);
                 if (!isMoving)
                 {
-                    transform.position = boardView.GetWorldPosition(currentTileIndex) + positionOffset;
+                    transform.position = boardView.GetPlayerStandWorldPosition(currentTileIndex) + positionOffset;
                     CameraFollowPosition = transform.position;
                 }
                 yield return null;
@@ -85,7 +91,7 @@ namespace GaeBullBing.Presentation.Board
             positionOffset = targetOffset;
             if (!isMoving)
             {
-                transform.position = boardView.GetWorldPosition(currentTileIndex) + positionOffset;
+                transform.position = boardView.GetPlayerStandWorldPosition(currentTileIndex) + positionOffset;
                 CameraFollowPosition = transform.position;
             }
             layoutRoutine = null;
@@ -100,16 +106,23 @@ namespace GaeBullBing.Presentation.Board
             {
                 var fromIndex = (startTileIndex + step - 1) % GaeBullBing.Core.Board.BoardState.DefaultTileCount;
                 var toIndex = (startTileIndex + step) % GaeBullBing.Core.Board.BoardState.DefaultTileCount;
-                var from = boardView.GetWorldPosition(fromIndex);
-                var to = boardView.GetWorldPosition(toIndex);
+                var from = boardView.GetPlayerStandWorldPosition(fromIndex);
+                boardView.ReleasePlayerTile(fromIndex);
                 ApplyDirectionForDeparture(fromIndex);
                 TileMoveStarted?.Invoke(toIndex);
                 var elapsed = 0f;
+                var triggeredPress = false;
 
                 while (elapsed < stepDuration)
                 {
                     elapsed += Time.deltaTime;
                     var progress = Mathf.Clamp01(elapsed / stepDuration);
+                    if (!triggeredPress && progress >= .45f)
+                    {
+                        boardView.PlayPress(toIndex);
+                        triggeredPress = true;
+                    }
+                    var to = boardView.GetPlayerStandWorldPosition(toIndex);
                     var position = Vector3.Lerp(from, to, Mathf.SmoothStep(0f, 1f, progress)) + positionOffset;
                     CameraFollowPosition = position;
                     position.y += Mathf.Sin(progress * Mathf.PI) * hopHeight;
@@ -118,15 +131,16 @@ namespace GaeBullBing.Presentation.Board
                 }
 
                 currentTileIndex = toIndex;
-                transform.position = to + positionOffset;
+                if (!triggeredPress)
+                    boardView.PlayPress(toIndex);
+                transform.position = boardView.GetPlayerStandWorldPosition(toIndex) + positionOffset;
                 CameraFollowPosition = transform.position;
                 TileEntered?.Invoke(toIndex);
             }
 
             isMoving = false;
-            transform.position = boardView.GetWorldPosition(currentTileIndex) + positionOffset;
+            transform.position = boardView.GetPlayerStandWorldPosition(currentTileIndex) + positionOffset;
             CameraFollowPosition = transform.position;
-            boardView.PlayPress((startTileIndex + distance) % GaeBullBing.Core.Board.BoardState.DefaultTileCount);
         }
 
         private void EnsureBoardView()

@@ -672,12 +672,14 @@ namespace GaeBullBing.Presentation.Game
         {
             if (State.CurrentPhase != TurnPhase.CornerSelection || element == TowerElement.None) return;
             Session.AddPermanentTowerDamageRateBonus(element, cornerDamageRateBonus);
+            HideTileInformation();
             cornerActionMenu.Hide(); StartCoroutine(CompleteTileActionRoutine());
         }
 
         public void SelectTeleportDestination(int tileIndex)
         {
             if (State.CurrentPhase != TurnPhase.CornerSelection || tileIndex < 0 || tileIndex >= State.Board.TileCount) return;
+            HideTileInformation();
             StartCoroutine(MoveToSelectedTileRoutine(tileIndex));
         }
 
