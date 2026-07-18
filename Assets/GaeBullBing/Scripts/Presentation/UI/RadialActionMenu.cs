@@ -16,11 +16,17 @@ namespace GaeBullBing.Presentation.UI
         [SerializeField] private Button[] choiceButtons = Array.Empty<Button>();
         [SerializeField] private Vector2 screenOffset = new(0f, 145f);
         [SerializeField, Min(20f)] private float choiceRadius = 90f;
+        [SerializeField, Min(0f)] private float upgradeScreenLeftMargin = 16f;
+        [SerializeField] private float upgradeScreenCenterYOffset;
+        [SerializeField] private Vector2 upgradeCardSize = new(220f, 105f);
+        [SerializeField, Min(20f)] private float upgradeVerticalSpacing = 115f;
         [SerializeField] private DeveloperConsoleView developerConsole;
 
         private RectTransform canvasRect;
         private Transform worldTarget;
         private UnityEngine.Camera worldCamera;
+        private bool showingUpgradeChoices;
+        private int visibleUpgradeChoiceCount;
 
         private void Awake()
         {
@@ -35,7 +41,10 @@ namespace GaeBullBing.Presentation.UI
 
             var screenPoint = worldCamera.WorldToScreenPoint(worldTarget.position);
             RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, screenPoint, null, out var localPoint);
-            menuRoot.anchoredPosition = localPoint + screenOffset;
+            var menuPosition = localPoint + screenOffset;
+            menuRoot.anchoredPosition = menuPosition;
+            if (showingUpgradeChoices && visibleUpgradeChoiceCount > 0)
+                LayoutUpgradeChoices(GetUpgradeScreenCenter() - menuPosition);
         }
 
         private void Update()
@@ -82,6 +91,7 @@ namespace GaeBullBing.Presentation.UI
             Action onPrimarySelected)
         {
             ClearChoices();
+            showingUpgradeChoices = false;
             worldTarget = target;
             worldCamera = camera;
             menuRoot.gameObject.SetActive(true);
@@ -95,6 +105,7 @@ namespace GaeBullBing.Presentation.UI
         public void ShowChoices(IReadOnlyList<TowerDefinition> definitions, Action<TowerDefinition> onSelected)
         {
             ClearChoices();
+            showingUpgradeChoices = false;
             primaryButton.gameObject.SetActive(false);
             choicesRoot.gameObject.SetActive(true);
 
@@ -117,26 +128,53 @@ namespace GaeBullBing.Presentation.UI
         {
             ClearChoices(); primaryButton.gameObject.SetActive(false); choicesRoot.gameObject.SetActive(true);
             var visibleCount = Mathf.Min(definitions.Count, choiceButtons.Length);
+            showingUpgradeChoices = true;
+            visibleUpgradeChoiceCount = visibleCount;
             for (var index = 0; index < visibleCount; index++)
             {
                 var definition = definitions[index]; var button = choiceButtons[index];
                 button.gameObject.SetActive(true);
                 var rect = (RectTransform)button.transform;
-                rect.sizeDelta = new Vector2(220f, 220f);
-                rect.anchoredPosition = new Vector2((index - (visibleCount - 1) * .5f) * 235f, 70f);
+                rect.sizeDelta = upgradeCardSize;
                 var label = button.GetComponentInChildren<Text>();
                 label.text = $"{definition.DisplayName}\n\n{definition.Description}";
                 label.alignment = TextAnchor.MiddleCenter;
                 label.resizeTextForBestFit = true;
-                label.resizeTextMinSize = 12;
-                label.resizeTextMaxSize = 20;
+                label.resizeTextMinSize = 10;
+                label.resizeTextMaxSize = 18;
                 button.onClick.RemoveAllListeners(); button.onClick.AddListener(() => onSelected(definition));
+            }
+            LayoutUpgradeChoices(GetUpgradeScreenCenter() - menuRoot.anchoredPosition);
+        }
+
+        private Vector2 GetUpgradeScreenCenter()
+        {
+            var halfWidth = upgradeCardSize.x * .5f;
+            var halfHeight = upgradeCardSize.y * .5f +
+                (visibleUpgradeChoiceCount - 1) * upgradeVerticalSpacing * .5f;
+            return new Vector2(
+                canvasRect.rect.xMin + upgradeScreenLeftMargin + halfWidth,
+                Mathf.Clamp(
+                    upgradeScreenCenterYOffset,
+                    canvasRect.rect.yMin + halfHeight,
+                    canvasRect.rect.yMax - halfHeight));
+        }
+
+        private void LayoutUpgradeChoices(Vector2 localCenter)
+        {
+            for (var index = 0; index < visibleUpgradeChoiceCount && index < choiceButtons.Length; index++)
+            {
+                var verticalIndex = (visibleUpgradeChoiceCount - 1) * .5f - index;
+                ((RectTransform)choiceButtons[index].transform).anchoredPosition =
+                    localCenter + Vector2.up * (verticalIndex * upgradeVerticalSpacing);
             }
         }
 
         public void Hide()
         {
             ClearChoices();
+            showingUpgradeChoices = false;
+            visibleUpgradeChoiceCount = 0;
             worldTarget = null;
             menuRoot.gameObject.SetActive(false);
         }

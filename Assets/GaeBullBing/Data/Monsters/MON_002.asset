@@ -15,5 +15,5 @@ MonoBehaviour:
   id: MON_002
   displayName: "\uC5EC\uC6B0"
   tier: 0
-  maxHp: 20
+  maxHp: 300
   moveDistance: 2

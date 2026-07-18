@@ -44,6 +44,8 @@ namespace GaeBullBing.Presentation.Game
         private bool isBusy;
         private MonsterDatabase monsterDatabase;
         private DifficultyService difficultyService;
+        private int killsPerDifficultyLevel = 10;
+        private float healthMultiplierPerDifficultyLevel = 1.15f;
         private Dice3DPresenter dice3DPresenter;
         private StonePresenter stonePresenter;
         private string nextMonsterOverrideId;
@@ -52,6 +54,9 @@ namespace GaeBullBing.Presentation.Game
         private bool diceTuningComplete;
         private Coroutine tileInfoCameraRoutine;
         private bool tileInfoOpen;
+        private int inspectedTileIndex = -1;
+        private bool tileInfoReturnsToPlayerFocus;
+        private const int MaxTowerElementDamageBonus = 30;
 
         public GameState State { get; private set; }
         public GameSession Session { get; private set; }
@@ -259,7 +264,10 @@ namespace GaeBullBing.Presentation.Game
             if (difficultyPatterns == null || difficultyPatterns.Length == 0)
                 difficultyPatterns = new[] { new DifficultyPatternData { MonsterIds = new[] { defaultMonster.Id } } };
             monsterDatabase = new MonsterDatabase(monsterDefinitions);
-            difficultyService = new DifficultyService(difficultyPatterns);
+            difficultyService = new DifficultyService(
+                difficultyPatterns,
+                killsPerDifficultyLevel,
+                healthMultiplierPerDifficultyLevel);
             difficultyService.Reset(State.Difficulty);
             dice3DPresenter = GetComponent<Dice3DPresenter>();
             if (dice3DPresenter == null)
@@ -297,6 +305,8 @@ namespace GaeBullBing.Presentation.Game
             var healthMultiplierPerLevel = source.wavedata[0].multiplier > 0f
                 ? source.wavedata[0].multiplier
                 : 1f;
+            killsPerDifficultyLevel = killsPerLevel;
+            healthMultiplierPerDifficultyLevel = healthMultiplierPerLevel;
 
             System.Array.Sort(source.wave_patterns, (left, right) => left.level.CompareTo(right.level));
             var knownMonsterIds = new HashSet<string>();
@@ -393,15 +403,26 @@ namespace GaeBullBing.Presentation.Game
 
         private void ShowTileInformation(int tileIndex)
         {
-            if (isBusy || State.CurrentPhase != TurnPhase.PlayerTurnStart || tileInfoPanel == null)
+            var returnToPlayerFocus = tileInfoOpen
+                ? tileInfoReturnsToPlayerFocus
+                : State.CurrentPhase == TurnPhase.TileAction || State.CurrentPhase == TurnPhase.TowerSelection;
+            ShowTileInformation(tileIndex, true, returnToPlayerFocus);
+        }
+
+        private void ShowTileInformation(int tileIndex, bool focusCamera, bool returnToPlayerFocus = false)
+        {
+            if (tileInfoPanel == null || tileIndex < 0 || tileIndex >= State.Board.TileCount)
                 return;
 
             tileInfoOpen = true;
+            inspectedTileIndex = tileIndex;
+            tileInfoReturnsToPlayerFocus = returnToPlayerFocus;
             tileInfoPanel.Show(
                 $"타일 {tileIndex}",
                 BuildTileDescription(tileIndex),
                 BuildMonsterDescription(tileIndex));
 
+            if (!focusCamera) return;
             if (tileInfoCameraRoutine != null) StopCoroutine(tileInfoCameraRoutine);
             tileInfoCameraRoutine = StartCoroutine(FocusTileInformation(tileIndex));
         }
@@ -415,13 +436,16 @@ namespace GaeBullBing.Presentation.Game
         private void CloseTileInformation()
         {
             if (!tileInfoOpen) return;
+            var returnToPlayerFocus = tileInfoReturnsToPlayerFocus;
             HideTileInformation();
-            tileInfoCameraRoutine = StartCoroutine(ReturnFromTileInformation());
+            tileInfoCameraRoutine = StartCoroutine(ReturnFromTileInformation(returnToPlayerFocus));
         }
 
         private void HideTileInformation()
         {
             tileInfoOpen = false;
+            inspectedTileIndex = -1;
+            tileInfoReturnsToPlayerFocus = false;
             tileInfoPanel?.Hide();
             if (tileInfoCameraRoutine != null)
             {
@@ -430,9 +454,22 @@ namespace GaeBullBing.Presentation.Game
             }
         }
 
-        private IEnumerator ReturnFromTileInformation()
+        private void RefreshOpenTileInformation()
         {
-            yield return cameraController.ReturnToOverview();
+            if (!tileInfoOpen || inspectedTileIndex < 0 || inspectedTileIndex >= State.Board.TileCount)
+                return;
+            tileInfoPanel?.Show(
+                $"타일 {inspectedTileIndex}",
+                BuildTileDescription(inspectedTileIndex),
+                BuildMonsterDescription(inspectedTileIndex));
+        }
+
+        private IEnumerator ReturnFromTileInformation(bool returnToPlayerFocus)
+        {
+            if (returnToPlayerFocus)
+                yield return cameraController.FocusOn(playerView);
+            else
+                yield return cameraController.ReturnToOverview();
             tileInfoCameraRoutine = null;
         }
 
@@ -526,7 +563,8 @@ namespace GaeBullBing.Presentation.Game
                 }
             }
             return (
-                Mathf.Max(0, Mathf.RoundToInt(damageSet ?? (definition.Damage + damageAdd) * damageMultiply *
+                Mathf.Max(0, Mathf.RoundToInt(damageSet ??
+                    (definition.Damage + damageAdd + State.GetPermanentTowerDamageFlatBonus(definition.Element)) * damageMultiply *
                     (1f + State.PermanentAllTowerDamageRateBonus +
                      State.GetPermanentTowerDamageRateBonus(definition.Element) +
                      State.GetPermanentLineTowerDamageRateBonus(MonsterService.GetLine(tile.Index)) +
@@ -590,6 +628,7 @@ namespace GaeBullBing.Presentation.Game
             State.CurrentPhase = TurnPhase.TileAction;
             diceHud.SetBusy();
             var tile = State.Board.Tiles[State.Player.CurrentTileIndex];
+            ShowTileInformation(tile.Index, false, tile.HasTower || tile.CanBuildTower);
             if (TryOpenCornerAction(State.Player.CurrentTileIndex))
                 return;
             if (!tile.HasTower && !tile.CanBuildTower)
@@ -670,7 +709,16 @@ namespace GaeBullBing.Presentation.Game
             if (tile.HasTower)
             {
                 var upgrades = GetUpgradeChoices(tile);
-                if (upgrades.Count == 0) { radialMenu.Hide(); StartCoroutine(CompleteTileActionRoutine()); return; }
+                if (upgrades.Count == 0)
+                {
+                    var definition = FindTowerDefinition(tile.Tower.DefinitionId);
+                    if (definition != null)
+                        Session.AddPermanentTowerDamageFlatBonus(definition.Element, MaxTowerElementDamageBonus);
+                    radialMenu.Hide();
+                    HideTileInformation();
+                    StartCoroutine(CompleteTileActionRoutine());
+                    return;
+                }
                 radialMenu.ShowUpgradeChoices(upgrades, SelectUpgrade);
                 return;
             }
@@ -702,6 +750,7 @@ namespace GaeBullBing.Presentation.Game
 
             towerPresenter.SetTower(tileIndex, definition);
             radialMenu.Hide();
+            HideTileInformation();
             StartCoroutine(CompleteTileActionRoutine());
         }
 
@@ -714,7 +763,9 @@ namespace GaeBullBing.Presentation.Game
             var definition = FindTowerDefinition(tile.Tower.DefinitionId);
             if (definition != null)
                 towerPresenter.SetTower(tileIndex, definition, tile.Tower.UpgradeTier);
-            radialMenu.Hide(); StartCoroutine(CompleteTileActionRoutine());
+            radialMenu.Hide();
+            HideTileInformation();
+            StartCoroutine(CompleteTileActionRoutine());
         }
 
         private List<TowerDefinition> GetTowerChoices(TileState tile)
@@ -777,6 +828,7 @@ namespace GaeBullBing.Presentation.Game
         {
             if (!Session.TryShiftDiceWeight(diceIndex, faceValue, delta))
                 return false;
+            diceHud.RefreshDiceFaces();
             diceTuningComplete = true;
             return true;
         }
@@ -807,6 +859,7 @@ namespace GaeBullBing.Presentation.Game
             if (State.IsGameOver)
             {
                 radialMenu.Hide();
+                RefreshOpenTileInformation();
                 diceHud.ShowGameOver(State.EscapedMonsterCount, State.EscapeLimit);
                 isBusy = false;
                 yield break;
@@ -818,11 +871,17 @@ namespace GaeBullBing.Presentation.Game
             foreach (var attackResult in attackResults)
                 yield return monsterPresenter.ApplyAttack(attackResult);
             var statusResults = Session.ResolveMonsterTurnEndEffects();
-            yield return stonePresenter.PlayResolvedMovement(State);
+            var consumedStoneResults = new HashSet<int>();
+            yield return stonePresenter.PlayResolvedMovement(
+                State,
+                statusResults,
+                consumedStoneResults,
+                monsterPresenter.ApplyAttack);
             stonePresenter.Refresh(State);
             boardView.RefreshTileEffects(State.Board);
-            foreach (var statusResult in statusResults)
-                yield return monsterPresenter.ApplyAttack(statusResult);
+            for (var resultIndex = 0; resultIndex < statusResults.Count; resultIndex++)
+                if (!consumedStoneResults.Contains(resultIndex))
+                    yield return monsterPresenter.ApplyAttack(statusResults[resultIndex]);
             var killedCount = 0;
             foreach (var attackResult in attackResults)
                 if (attackResult.Killed) killedCount++;
@@ -833,6 +892,7 @@ namespace GaeBullBing.Presentation.Game
 
             Session.CompleteRound();
 
+            RefreshOpenTileInformation();
             diceHud.BeginPlayerTurn();
             isBusy = false;
         }

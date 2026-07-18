@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 4b016f85dc1770a45855a2934a16fa8e
+guid: 8d312d4412a7e6d4384d801b33dcf4e9
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 1791904589581890566
-    second: Fox_0
+      213: 7527960281118310703
+    second: Fox_front_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -100,7 +100,7 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Fox_0
+      name: Fox_front_0
       rect:
         serializedVersion: 2
         x: 31
@@ -115,8 +115,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 604bb65fabf1ed810800000000000000
-      internalID: 1791904589581890566
+      spriteID: f218e47adffa87860800000000000000
+      internalID: 7527960281118310703
       vertices: []
       indices: 
       edges: []
@@ -135,7 +135,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      Fox_0: 1791904589581890566
+      Fox_front_0: 7527960281118310703
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

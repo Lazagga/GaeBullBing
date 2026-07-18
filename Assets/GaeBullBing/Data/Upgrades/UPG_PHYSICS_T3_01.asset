@@ -14,15 +14,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: GaeBullBing.Core::GaeBullBing.Core.Data.TowerUpgradeDefinition
   id: UPG_PHYSICS_T3_01
   displayName: "TOW_03_\uBB3C\uB9AC_T3_01"
-  description: "\uD53C\uD574\uB7C9 9\uBC30 \uC99D\uAC00"
+  description: "\uD53C\uD574\uB7C9\uC774 5\uBC30 \uC99D\uAC00\uD569\uB2C8\uB2E4."
   element: 3
   tier: 3
   weight: 1
   statModifiers:
   - Stat: damage
     Operation: add
-    Value: 20
+    Value: 30
   - Stat: damage
     Operation: Multiply
-    Value: 9
+    Value: 5
   effects: []

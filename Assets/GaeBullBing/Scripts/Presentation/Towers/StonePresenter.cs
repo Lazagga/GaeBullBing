@@ -14,6 +14,8 @@ namespace GaeBullBing.Presentation.Towers
         [SerializeField, Min(0.05f)] private float moveDuration = 0.2f;
         [SerializeField, Min(0.05f)] private float exitDuration = 0.45f;
         [SerializeField, Min(0.1f)] private float fallDistance = 1.15f;
+        [SerializeField] private Vector3 visualOffset = new(0f, .32f, 0f);
+        [SerializeField] private int behindActorOffset = 5;
 
         private readonly Dictionary<int, SpriteRenderer> views = new();
         private Sprite circleSprite;
@@ -46,10 +48,10 @@ namespace GaeBullBing.Presentation.Towers
                     views.Add(tower.InstanceId, renderer);
                 }
 
-                var position = boardView.GetWorldPosition(tower.StoneTileIndex);
-                renderer.transform.position = position;
+                var groundPosition = boardView.GetWorldPosition(tower.StoneTileIndex);
+                renderer.transform.position = groundPosition + visualOffset;
                 renderer.transform.localScale = Vector3.one * diameter;
-                renderer.sortingOrder = BoardDepthSorting.GetOrder(position, 25);
+                renderer.sortingOrder = GetStoneOrder(groundPosition, tower.StoneTileIndex);
                 renderer.gameObject.SetActive(true);
             }
 
@@ -57,7 +59,11 @@ namespace GaeBullBing.Presentation.Towers
                 if (!activeIds.Contains(pair.Key)) pair.Value.gameObject.SetActive(false);
         }
 
-        public IEnumerator PlayResolvedMovement(GameState state)
+        public IEnumerator PlayResolvedMovement(
+            GameState state,
+            IReadOnlyList<TowerAttackResult> resolvedResults,
+            ISet<int> consumedResultIndices,
+            System.Func<TowerAttackResult, IEnumerator> playAttack)
         {
             if (state == null || boardView == null) yield break;
             foreach (var tile in state.Board.Tiles)
@@ -72,26 +78,46 @@ namespace GaeBullBing.Presentation.Towers
                 var previousPosition = renderer.transform.position;
                 foreach (var tileIndex in tower.StoneTraversalTiles)
                 {
-                    var position = boardView.GetWorldPosition(tileIndex);
-                    yield return MoveStone(renderer, previousPosition, position, moveDuration, false);
+                    var groundPosition = boardView.GetWorldPosition(tileIndex);
+                    var position = groundPosition + visualOffset;
+                    yield return MoveStone(renderer, previousPosition, position, moveDuration,
+                        false, false, groundPosition, tileIndex);
                     previousPosition = position;
+                    if (resolvedResults != null && playAttack != null)
+                        for (var resultIndex = 0; resultIndex < resolvedResults.Count; resultIndex++)
+                        {
+                            if (consumedResultIndices != null && consumedResultIndices.Contains(resultIndex)) continue;
+                            var result = resolvedResults[resultIndex];
+                            if (result.TowerInstanceId != tower.InstanceId || result.TargetTileIndex != tileIndex) continue;
+                            consumedResultIndices?.Add(resultIndex);
+                            yield return playAttack(result);
+                        }
                 }
 
                 if (tower.StoneExitAnimation == StoneExitAnimation.FallOffBoard)
                 {
-                    var direction = tower.StoneTraversalTiles.Count > 1
-                        ? previousPosition - boardView.GetWorldPosition(
-                            tower.StoneTraversalTiles[tower.StoneTraversalTiles.Count - 2])
-                        : previousPosition - boardView.GetWorldPosition(tile.Index);
-                    if (direction.sqrMagnitude < 0.001f) direction = Vector3.down;
-                    var target = previousPosition + direction.normalized * fallDistance + Vector3.down * 0.45f;
-                    yield return MoveStone(renderer, previousPosition, target, exitDuration, true);
+                    var lastTileIndex = tower.StoneTraversalTiles[tower.StoneTraversalTiles.Count - 1];
+                    var cornerGround = boardView.GetWorldPosition(lastTileIndex);
+                    var previousGround = tower.StoneTraversalTiles.Count > 1
+                        ? boardView.GetWorldPosition(tower.StoneTraversalTiles[tower.StoneTraversalTiles.Count - 2])
+                        : boardView.GetWorldPosition(tile.Index);
+                    var exitDirection = cornerGround - previousGround;
+                    if (exitDirection.sqrMagnitude < .001f) exitDirection = Vector3.down;
+                    var outsideGround = cornerGround + exitDirection;
+                    var outsidePosition = outsideGround + visualOffset;
+                    yield return MoveStone(renderer, previousPosition, outsidePosition, moveDuration,
+                        false, false, outsideGround, lastTileIndex);
+                    var fallTarget = outsidePosition + Vector3.down * fallDistance;
+                    yield return MoveStone(renderer, outsidePosition, fallTarget, exitDuration,
+                        false, true, outsideGround, lastTileIndex);
                 }
                 else if (tower.StoneExitAnimation == StoneExitAnimation.ShrinkOnZeroDamage &&
                          tower.StoneExitTileIndex >= 0)
                 {
-                    var target = boardView.GetWorldPosition(tower.StoneExitTileIndex);
-                    yield return MoveStone(renderer, previousPosition, target, exitDuration, true);
+                    var targetGround = boardView.GetWorldPosition(tower.StoneExitTileIndex);
+                    var target = targetGround + visualOffset;
+                    yield return MoveStone(renderer, previousPosition, target, exitDuration,
+                        true, true, targetGround, tower.StoneExitTileIndex);
                 }
 
                 renderer.gameObject.SetActive(false);
@@ -106,7 +132,10 @@ namespace GaeBullBing.Presentation.Towers
             Vector3 start,
             Vector3 end,
             float duration,
-            bool disappear)
+            bool shrink,
+            bool fade,
+            Vector3 sortingGroundPosition,
+            int sortingTileIndex)
         {
             var elapsed = 0f;
             var startScale = Vector3.one * diameter;
@@ -117,10 +146,11 @@ namespace GaeBullBing.Presentation.Towers
                 var eased = normalized * normalized * (3f - 2f * normalized);
                 var position = Vector3.LerpUnclamped(start, end, eased);
                 renderer.transform.position = position;
-                renderer.sortingOrder = BoardDepthSorting.GetOrder(position, 25);
-                if (disappear)
-                {
+                renderer.sortingOrder = GetStoneOrder(sortingGroundPosition, sortingTileIndex);
+                if (shrink)
                     renderer.transform.localScale = Vector3.Lerp(startScale, Vector3.zero, eased);
+                if (fade)
+                {
                     var color = renderer.color;
                     color.a = 1f - eased;
                     renderer.color = color;
@@ -129,14 +159,18 @@ namespace GaeBullBing.Presentation.Towers
             }
 
             renderer.transform.position = end;
-            if (disappear)
-            {
+            if (shrink)
                 renderer.transform.localScale = Vector3.zero;
+            if (fade)
+            {
                 var color = renderer.color;
                 color.a = 0f;
                 renderer.color = color;
             }
         }
+
+        private int GetStoneOrder(Vector3 groundPosition, int tileIndex) =>
+            BoardDepthSorting.GetActorOrder(groundPosition, tileIndex) - Mathf.Max(1, behindActorOffset);
 
         private static Sprite CreateCircleSprite()
         {

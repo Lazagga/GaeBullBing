@@ -15,7 +15,8 @@ namespace GaeBullBing.Presentation.Monsters
         [SerializeField] private Sprite monsterSprite;
         [SerializeField] private Sprite bearFrontSprite;
         [SerializeField] private Sprite bearBackSprite;
-        [SerializeField] private Sprite foxSprite;
+        [SerializeField] private Sprite foxFrontSprite;
+        [SerializeField] private Sprite foxBackSprite;
         [SerializeField] private Sprite squirrelFrontSprite;
         [SerializeField] private Sprite squirrelBackSprite;
         [SerializeField] private MonsterDefinition[] monsterDefinitions;
@@ -71,8 +72,8 @@ namespace GaeBullBing.Presentation.Monsters
                     backSprite = bearBackSprite != null ? bearBackSprite : bearFrontSprite;
                     return;
                 case "MON_002":
-                    frontSprite = foxSprite;
-                    backSprite = foxSprite;
+                    frontSprite = foxFrontSprite;
+                    backSprite = foxBackSprite != null ? foxBackSprite : foxFrontSprite;
                     return;
                 case "MON_003":
                     frontSprite = squirrelFrontSprite;

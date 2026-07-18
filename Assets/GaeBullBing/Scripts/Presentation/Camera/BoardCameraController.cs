@@ -20,6 +20,7 @@ namespace GaeBullBing.Presentation.Camera
         private UnityEngine.Camera controlledCamera;
         private Vector3 overviewPosition;
         private PlayerBoardView followTarget;
+        private int transitionRevision;
         private int lastScreenWidth;
         private int lastScreenHeight;
 
@@ -59,29 +60,34 @@ namespace GaeBullBing.Presentation.Camera
 
         public IEnumerator FocusOn(PlayerBoardView target)
         {
+            var revision = ++transitionRevision;
             followTarget = target;
             var followPosition = target.CameraFollowPosition;
             yield return TransitionTo(
                 new Vector3(followPosition.x, followPosition.y, transform.position.z),
-                focusSize);
+                focusSize,
+                revision);
         }
 
         public IEnumerator FocusOnTile(int tileIndex)
         {
+            var revision = ++transitionRevision;
             followTarget = null;
             var position = boardView.GetWorldPosition(tileIndex);
             yield return TransitionTo(
                 new Vector3(position.x, position.y, transform.position.z),
-                focusSize);
+                focusSize,
+                revision);
         }
 
         public IEnumerator ReturnToOverview()
         {
+            var revision = ++transitionRevision;
             followTarget = null;
-            yield return TransitionTo(overviewPosition, overviewSize);
+            yield return TransitionTo(overviewPosition, overviewSize, revision);
         }
 
-        private IEnumerator TransitionTo(Vector3 targetPosition, float targetSize)
+        private IEnumerator TransitionTo(Vector3 targetPosition, float targetSize, int revision)
         {
             if (!float.IsFinite(targetSize) || targetSize < 0.1f)
                 targetSize = DefaultOverviewSize;
@@ -92,6 +98,8 @@ namespace GaeBullBing.Presentation.Camera
 
             while (elapsed < transitionDuration)
             {
+                if (revision != transitionRevision)
+                    yield break;
                 elapsed += Time.deltaTime;
                 var progress = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / transitionDuration));
                 transform.position = Vector3.Lerp(startPosition, targetPosition, progress);
@@ -99,8 +107,11 @@ namespace GaeBullBing.Presentation.Camera
                 yield return null;
             }
 
-            transform.position = targetPosition;
-            controlledCamera.orthographicSize = targetSize;
+            if (revision == transitionRevision)
+            {
+                transform.position = targetPosition;
+                controlledCamera.orthographicSize = targetSize;
+            }
         }
 
         private void RefreshResponsiveOverview()

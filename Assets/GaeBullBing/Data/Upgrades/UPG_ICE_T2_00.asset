@@ -14,18 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: GaeBullBing.Core::GaeBullBing.Core.Data.TowerUpgradeDefinition
   id: UPG_ICE_T2_00
   displayName: "TOW_02_\uC5BC\uC74C_T2_00"
-  description: "1\uD134 \uBE59\uACB0(\uBE59\uACB0\uC778 \uC801\uC740 \uB2E4\uC74C
-    \uD134 \uB3D9\uC548 \uC774\uB3D9\uD558\uC9C0 \uBABB\uD558\uACE0, \uADF8 \uB2E4\uC74C
-    \uD134 \uC2DC\uC791 \uC2DC \uD574\uC81C \uD6C4 \uC774\uB3D9, \uD55C \uBC88 \uBE59\uACB0\uB41C
-    \uC801\uC740 \uADF8 \uB77C\uC778\uB3D9\uC548 \uB2E4\uC2DC \uBE59\uACB0\uC5D0
-    \uAC78\uB9AC\uC9C0 \uC54A\uC74C)"
+  description: "\uACF5\uACA9 \uB300\uC0C1\uC774 1\uD134\uB3D9\uC548 \uBE59\uACB0\uB429\uB2C8\uB2E4."
   element: 2
   tier: 2
   weight: 1
   statModifiers:
   - Stat: damage
     Operation: add
-    Value: 10
+    Value: 15
   effects:
   - Id: freeze
     Value: 1

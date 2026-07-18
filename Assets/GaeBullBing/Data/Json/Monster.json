@@ -6,7 +6,7 @@
       "tier": "Normal",
       "appearance_wave": 1,
       "base_stats": {
-        "max_hp": 30,
+        "max_hp": 420,
         "move_speed": 1,
         "base_defense": 0
       },
@@ -22,7 +22,7 @@
       "tier": "Normal",
       "appearance_wave": 1,
       "base_stats": {
-        "max_hp": 20,
+        "max_hp": 300,
         "move_speed": 2,
         "base_defense": 0
       },
@@ -38,7 +38,7 @@
       "tier": "Normal",
       "appearance_wave": 1,
       "base_stats": {
-        "max_hp": 10,
+        "max_hp": 240,
         "move_speed": 3,
         "base_defense": 0
       },

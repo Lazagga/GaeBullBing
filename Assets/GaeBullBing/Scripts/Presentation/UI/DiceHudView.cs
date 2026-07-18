@@ -10,12 +10,16 @@ namespace GaeBullBing.Presentation.UI
         [SerializeField] private Button rollButton;
         [SerializeField] private DeveloperConsoleView developerConsole;
         [SerializeField] private Text remainingKillsText;
+        [SerializeField] private DiceFaceListView diceFaceListView;
 
         private GameController controller;
 
         public void Bind(GameController gameController)
         {
             controller = gameController;
+            if (diceFaceListView == null)
+                diceFaceListView = FindFirstObjectByType<DiceFaceListView>(FindObjectsInactive.Include);
+            diceFaceListView?.Bind(gameController.State.Dice);
             rollButton.onClick.RemoveListener(OnRollClicked);
             rollButton.onClick.AddListener(OnRollClicked);
             BeginPlayerTurn();
@@ -62,10 +66,10 @@ namespace GaeBullBing.Presentation.UI
         public void RefreshDifficulty()
         {
             if (remainingKillsText == null || controller == null) return;
-            remainingKillsText.text = controller.IsFinalPattern
-                ? "최종 패턴"
-                : $"다음 패턴까지 {controller.RemainingKills}킬";
+            remainingKillsText.text = $"다음 난이도까지 {controller.RemainingKills}킬";
         }
+
+        public void RefreshDiceFaces() => diceFaceListView?.Refresh();
 
         private void OnRollClicked() => controller.RollDiceAndMovePlayer();
     }

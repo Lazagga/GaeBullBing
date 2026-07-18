@@ -3,6 +3,7 @@ using GaeBullBing.Core.Board;
 using GaeBullBing.Core.Dice;
 using GaeBullBing.Core.Game;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace GaeBullBing.Tests.EditMode
 {
@@ -174,6 +175,16 @@ namespace GaeBullBing.Tests.EditMode
         }
 
         [Test]
+        public void MonsterState_BurnStacksAreClampedBetweenZeroAndTen()
+        {
+            var monster = new GaeBullBing.Core.Monsters.MonsterState { BurnStacks = 25 };
+            Assert.That(monster.BurnStacks, Is.EqualTo(10));
+
+            monster.BurnStacks = -3;
+            Assert.That(monster.BurnStacks, Is.EqualTo(0));
+        }
+
+        [Test]
         public void MonsterService_RemovesMonsterAfterFullLap()
         {
             var state = new GameState();
@@ -191,6 +202,39 @@ namespace GaeBullBing.Tests.EditMode
             Assert.That(results[0].Distance, Is.EqualTo(1));
             Assert.That(results[0].ReachedBase, Is.True);
             Assert.That(state.Monsters, Is.Empty);
+        }
+
+        [Test]
+        public void DifficultyService_FinalPatternRepeatsWhileLevelAndHealthKeepIncreasing()
+        {
+            var patterns = new[]
+            {
+                new GaeBullBing.Core.Monsters.DifficultyPatternData
+                {
+                    RequiredKills = 0,
+                    HealthMultiplier = 1f,
+                    MonsterIds = new[] { "MON_001" }
+                },
+                new GaeBullBing.Core.Monsters.DifficultyPatternData
+                {
+                    RequiredKills = 10,
+                    HealthMultiplier = 1.5f,
+                    MonsterIds = new[] { "MON_002", "MON_003" }
+                }
+            };
+            var service = new GaeBullBing.Core.Monsters.DifficultyService(patterns, 10, 1.5f);
+            var state = new GaeBullBing.Core.Monsters.DifficultyState();
+            service.Reset(state);
+
+            service.AddKills(state, 10);
+            Assert.That(service.GetNextMonsterId(state), Is.EqualTo("MON_002"));
+
+            service.AddKills(state, 10);
+
+            Assert.That(state.Level, Is.EqualTo(3));
+            Assert.That(service.GetHealthMultiplier(state), Is.EqualTo(2.25f).Within(0.0001f));
+            Assert.That(service.GetNextMonsterId(state), Is.EqualTo("MON_003"));
+            Assert.That(service.GetRemainingKills(state), Is.EqualTo(10));
         }
 
         [Test]
@@ -242,6 +286,36 @@ namespace GaeBullBing.Tests.EditMode
             Assert.That(tile.Tower.DefinitionId, Is.EqualTo("TOW_01"));
             Assert.That(tile.Tower.UpgradeTier, Is.EqualTo(2));
             Assert.That(tile.Tower.AppliedUpgradeIds, Contains.Item("UPG_FIRE_02"));
+        }
+
+        [Test]
+        public void GameSession_ElementFlatDamageBonusAffectsMatchingTowerCombat()
+        {
+            var state = new GameState();
+            var session = CreateSession(state);
+            session.StartNewGame();
+            state.Board.Tiles[5].Tower = new GaeBullBing.Core.Towers.TowerState
+            {
+                InstanceId = 1,
+                DefinitionId = "TOW_01"
+            };
+            state.Monsters.Add(CreateMonster(1, 5, 100, 5));
+
+            var definition = ScriptableObject.CreateInstance<GaeBullBing.Core.Data.TowerDefinition>();
+            SetPrivateField(definition, "id", "TOW_01");
+            SetPrivateField(definition, "element", TowerElement.Fire);
+            SetPrivateField(definition, "damage", 10);
+            SetPrivateField(definition, "range", 3);
+            SetPrivateField(definition, "targetCount", 1);
+            SetPrivateField(definition, "attackCount", 1);
+            session.AddPermanentTowerDamageFlatBonus(TowerElement.Fire, 30);
+
+            var results = session.ResolveTowerCombat(
+                new[] { definition },
+                System.Array.Empty<GaeBullBing.Core.Data.TowerUpgradeDefinition>());
+
+            Assert.That(results[0].Damage, Is.EqualTo(40));
+            Object.DestroyImmediate(definition);
         }
 
         [Test]
@@ -347,6 +421,12 @@ namespace GaeBullBing.Tests.EditMode
                 ["TOW_01"] = new GaeBullBing.Core.Towers.TowerCombatStats(damage, range, targetCount)
             };
             return new GaeBullBing.Core.Towers.TowerCombatService().Resolve(state, stats);
+        }
+
+        private static void SetPrivateField<T>(object target, string fieldName, T value)
+        {
+            target.GetType().GetField(fieldName,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.SetValue(target, value);
         }
 
         private sealed class FixedRandom : IDiceRandom

@@ -16,7 +16,7 @@ MonoBehaviour:
   displayName: "\uC5BC\uC74C\uD0C0\uC6CC"
   element: 2
   tier: 1
-  damage: 10
+  damage: 15
   range: 3
   targetCount: 1
   attackCount: 1

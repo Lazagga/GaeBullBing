@@ -1,38 +1,26 @@
 {
   "wavedata": [
     {
-      "required_kills": 10,
-      "multiplier": 1.15
+      "required_kills": 5,
+      "multiplier": 1.2
     }
   ],
   
   "wave_patterns": [
     {
       "level": 1,
-      "required_kills": 10,
       "spawn_pattern": [
         "MON_001",
         "MON_001",
         "MON_001",
         "MON_002",
-        "MON_001",
-        "MON_002",
-        "MON_001",
-        "MON_002",
-        "MON_001",
         "MON_002"
       ]
     },
     {
       "level": 2,
-      "required_kills": 10,
       "spawn_pattern": [
         "MON_001",
-        "MON_001",
-        "MON_001",
-        "MON_002",
-        "MON_002",
-        "MON_002",
         "MON_001",
         "MON_002",
         "MON_003",
@@ -41,15 +29,9 @@
     },
     {
       "level": 3,
-      "required_kills": 10,
       "spawn_pattern": [
         "MON_001",
         "MON_001",
-        "MON_001",
-        "MON_001",
-        "MON_001",
-        "MON_003",
-        "MON_003",
         "MON_003",
         "MON_003",
         "MON_003"
@@ -57,32 +39,20 @@
     },
     {
       "level": 4,
-      "required_kills": 10,
       "spawn_pattern": [
         "MON_002",
         "MON_002",
         "MON_003",
         "MON_002",
-        "MON_002",
-        "MON_003",
-        "MON_002",
-        "MON_002",
-        "MON_003",
         "MON_003"
       ]
     },
     {
       "level": 5,
-      "required_kills": 10,
       "spawn_pattern": [
         "MON_001",
         "MON_001",
-        "MON_001",
         "MON_002",
-        "MON_002",
-        "MON_002",
-        "MON_003",
-        "MON_003",
         "MON_003",
         "MON_003"
       ]

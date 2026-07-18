@@ -235,7 +235,8 @@ namespace GaeBullBing.Core.Game
                                 }
                             }
             return new TowerCombatStats(
-                Math.Max(0, (int)Math.Round(damageSet ?? (definition.Damage + damageAdd) * damageMultiply *
+                Math.Max(0, (int)Math.Round(damageSet ??
+                    (definition.Damage + damageAdd + State.GetPermanentTowerDamageFlatBonus(definition.Element)) * damageMultiply *
                     (1f + State.PermanentAllTowerDamageRateBonus +
                      State.GetPermanentTowerDamageRateBonus(definition.Element) +
                      State.GetPermanentLineTowerDamageRateBonus(MonsterService.GetLine(tile.Index)) +
@@ -262,6 +263,9 @@ namespace GaeBullBing.Core.Game
 
         public void AddPermanentTowerDamageRateBonus(TowerElement element, float amount) =>
             State.AddPermanentTowerDamageRateBonus(element, amount);
+
+        public void AddPermanentTowerDamageFlatBonus(TowerElement element, int amount) =>
+            State.AddPermanentTowerDamageFlatBonus(element, amount);
 
         public void AddPermanentAllTowerDamageRateBonus(float amount) =>
             State.AddPermanentAllTowerDamageRateBonus(amount);
