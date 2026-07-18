@@ -14,6 +14,7 @@ namespace GaeBullBing.Presentation.Board
 
         private BoardTilemapView boardView;
         private SpriteRenderer visualRenderer;
+        private BoardCharacterShadow shadow;
         private int currentTileIndex;
         private Coroutine layoutRoutine;
         private bool isMoving;
@@ -32,15 +33,22 @@ namespace GaeBullBing.Presentation.Board
         private void ConfigureVisual()
         {
             var source = GetComponent<SpriteRenderer>();
-            if (source == null || transform.Find("Visual") != null) return;
-            var visual = new GameObject("Visual"); visual.transform.SetParent(transform, false);
-            visual.transform.localScale = Vector3.one;
-            var renderer = visual.AddComponent<SpriteRenderer>();
-            if (frontSprite == null) frontSprite = source.sprite;
-            renderer.sprite = frontSprite; renderer.color = source.color; renderer.sharedMaterial = source.sharedMaterial;
-            renderer.sortingLayerID = source.sortingLayerID; renderer.sortingOrder = source.sortingOrder;
-            renderer.flipX = source.flipX; renderer.flipY = source.flipY; source.enabled = false;
-            visualRenderer = renderer;
+            var visual = transform.Find("Visual");
+            if (visual == null && source != null)
+            {
+                visual = new GameObject("Visual").transform;
+                visual.SetParent(transform, false);
+                visual.localScale = Vector3.one;
+                var renderer = visual.gameObject.AddComponent<SpriteRenderer>();
+                if (frontSprite == null) frontSprite = source.sprite;
+                renderer.sprite = frontSprite; renderer.color = source.color; renderer.sharedMaterial = source.sharedMaterial;
+                renderer.sortingLayerID = source.sortingLayerID; renderer.sortingOrder = source.sortingOrder;
+                renderer.flipX = source.flipX; renderer.flipY = source.flipY; source.enabled = false;
+            }
+            visualRenderer = visual != null ? visual.GetComponent<SpriteRenderer>() : null;
+            if (shadow == null)
+                shadow = BoardCharacterShadow.Create(transform,
+                    visualRenderer != null ? visualRenderer.sortingLayerID : 0);
         }
 
         private void LateUpdate()
@@ -54,6 +62,7 @@ namespace GaeBullBing.Presentation.Board
             }
             if (visualRenderer != null)
                 visualRenderer.sortingOrder = BoardDepthSorting.GetOrder(CameraFollowPosition, 20);
+            shadow?.Set(CameraFollowPosition);
         }
 
         public void SnapTo(int tileIndex)

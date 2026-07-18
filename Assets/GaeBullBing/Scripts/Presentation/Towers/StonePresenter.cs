@@ -19,10 +19,12 @@ namespace GaeBullBing.Presentation.Towers
 
         private readonly Dictionary<int, SpriteRenderer> views = new();
         private Sprite circleSprite;
+        private Sprite stoneSprite;
 
-        public void Initialize(BoardTilemapView view)
+        public void Initialize(BoardTilemapView view, Sprite attackSprite = null)
         {
             boardView = view;
+            if (attackSprite != null) stoneSprite = attackSprite;
             if (circleSprite == null) circleSprite = CreateCircleSprite();
         }
 
@@ -43,14 +45,14 @@ namespace GaeBullBing.Presentation.Towers
                     var stoneObject = new GameObject($"Stone ({tower.InstanceId})");
                     stoneObject.transform.SetParent(transform, false);
                     renderer = stoneObject.AddComponent<SpriteRenderer>();
-                    renderer.sprite = circleSprite;
+                    renderer.sprite = stoneSprite != null ? stoneSprite : circleSprite;
                     renderer.color = Color.white;
                     views.Add(tower.InstanceId, renderer);
                 }
 
                 var groundPosition = boardView.GetWorldPosition(tower.StoneTileIndex);
                 renderer.transform.position = groundPosition + visualOffset;
-                renderer.transform.localScale = Vector3.one * diameter;
+                SetStoneScale(renderer, diameter);
                 renderer.sortingOrder = GetStoneOrder(groundPosition, tower.StoneTileIndex);
                 renderer.gameObject.SetActive(true);
             }
@@ -74,7 +76,7 @@ namespace GaeBullBing.Presentation.Towers
 
                 renderer.gameObject.SetActive(true);
                 renderer.color = Color.white;
-                renderer.transform.localScale = Vector3.one * diameter;
+                SetStoneScale(renderer, diameter);
                 var previousPosition = renderer.transform.position;
                 foreach (var tileIndex in tower.StoneTraversalTiles)
                 {
@@ -88,7 +90,8 @@ namespace GaeBullBing.Presentation.Towers
                         {
                             if (consumedResultIndices != null && consumedResultIndices.Contains(resultIndex)) continue;
                             var result = resolvedResults[resultIndex];
-                            if (result.TowerInstanceId != tower.InstanceId || result.TargetTileIndex != tileIndex) continue;
+                            if (result.VisualKind != TowerAttackVisualKind.RollingStone ||
+                                result.TowerInstanceId != tower.InstanceId || result.TargetTileIndex != tileIndex) continue;
                             consumedResultIndices?.Add(resultIndex);
                             yield return playAttack(result);
                         }
@@ -138,7 +141,7 @@ namespace GaeBullBing.Presentation.Towers
             int sortingTileIndex)
         {
             var elapsed = 0f;
-            var startScale = Vector3.one * diameter;
+            var startScale = renderer.transform.localScale;
             while (elapsed < duration)
             {
                 elapsed += Time.deltaTime;
@@ -146,6 +149,7 @@ namespace GaeBullBing.Presentation.Towers
                 var eased = normalized * normalized * (3f - 2f * normalized);
                 var position = Vector3.LerpUnclamped(start, end, eased);
                 renderer.transform.position = position;
+                renderer.transform.Rotate(0f, 0f, -540f * Time.deltaTime);
                 renderer.sortingOrder = GetStoneOrder(sortingGroundPosition, sortingTileIndex);
                 if (shrink)
                     renderer.transform.localScale = Vector3.Lerp(startScale, Vector3.zero, eased);
@@ -171,6 +175,16 @@ namespace GaeBullBing.Presentation.Towers
 
         private int GetStoneOrder(Vector3 groundPosition, int tileIndex) =>
             BoardDepthSorting.GetActorOrder(groundPosition, tileIndex) - Mathf.Max(1, behindActorOffset);
+
+        private static void SetStoneScale(SpriteRenderer renderer, float targetDiameter)
+        {
+            var spriteSize = renderer.sprite != null
+                ? Mathf.Max(renderer.sprite.bounds.size.x, renderer.sprite.bounds.size.y)
+                : 1f;
+            renderer.transform.localScale = Vector3.one * (spriteSize > .001f
+                ? targetDiameter / spriteSize
+                : targetDiameter);
+        }
 
         private static Sprite CreateCircleSprite()
         {

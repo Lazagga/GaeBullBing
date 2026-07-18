@@ -156,7 +156,11 @@ namespace GaeBullBing.Core.Game
         public TowerState UpgradeTower(int tileIndex, TowerUpgradeDefinition upgrade)
         {
             State.CurrentPhase = TurnPhase.TowerResolve;
-            return towerService.Upgrade(State.Board.Tiles[tileIndex], upgrade.Id, upgrade.Tier);
+            var tower = towerService.Upgrade(State.Board.Tiles[tileIndex], upgrade.Id, upgrade.Tier);
+            foreach (var effect in upgrade.Effects)
+                if (!string.IsNullOrWhiteSpace(effect.Id) && !tower.AppliedEffectIds.Contains(effect.Id))
+                    tower.AppliedEffectIds.Add(effect.Id);
+            return tower;
         }
 
         public System.Collections.Generic.IReadOnlyList<TowerAttackResult> ResolveTowerCombat(

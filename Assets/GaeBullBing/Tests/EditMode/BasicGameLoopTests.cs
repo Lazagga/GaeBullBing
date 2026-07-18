@@ -502,6 +502,52 @@ namespace GaeBullBing.Tests.EditMode
             Assert.That(fourTilesAway.CurrentHealth, Is.EqualTo(100f));
         }
 
+        [Test]
+        public void AreaEffect_EmitsTileMarkersBeforeAreaDamage()
+        {
+            var state = CreateCombatState();
+            state.Board.Tiles[5].Tower.AppliedEffectIds.Add("explode");
+            state.Monsters.Add(CreateMonster(1, 5, 100, 5));
+            state.Monsters.Add(CreateMonster(2, 6, 100, 6));
+
+            var results = new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(
+                state,
+                new[]
+                {
+                    new GaeBullBing.Core.Towers.TowerAttackResult(1, 1, 10f, false,
+                        targetTileIndex: 5,
+                        visualKind: GaeBullBing.Core.Towers.TowerAttackVisualKind.Projectile)
+                });
+
+            Assert.That(results[0].VisualKind,
+                Is.EqualTo(GaeBullBing.Core.Towers.TowerAttackVisualKind.AreaTile));
+            Assert.That(results[1].VisualKind,
+                Is.EqualTo(GaeBullBing.Core.Towers.TowerAttackVisualKind.AreaTile));
+            Assert.That(results[2].VisualKind,
+                Is.EqualTo(GaeBullBing.Core.Towers.TowerAttackVisualKind.AreaTile));
+            Assert.That(new[] { results[0].TargetTileIndex, results[1].TargetTileIndex, results[2].TargetTileIndex },
+                Is.EquivalentTo(new[] { 4, 5, 6 }));
+        }
+
+        [Test]
+        public void UpgradeTower_CopiesDeclaredEffectIdsToRuntimeTower()
+        {
+            var state = CreateCombatState();
+            var session = CreateSession(state);
+            var upgrade = ScriptableObject.CreateInstance<GaeBullBing.Core.Data.TowerUpgradeDefinition>();
+            SetPrivateField(upgrade, "id", "UPG_TEST_AREA");
+            SetPrivateField(upgrade, "tier", 2);
+            SetPrivateField(upgrade, "effects", new[]
+            {
+                new GaeBullBing.Core.Data.TowerUpgradeEffect { Id = "aoe_tile", Value = 1f }
+            });
+
+            var tower = session.UpgradeTower(5, upgrade);
+
+            Assert.That(tower.AppliedEffectIds, Does.Contain("aoe_tile"));
+            Object.DestroyImmediate(upgrade);
+        }
+
         private static GameState CreateCombatState()
         {
             var state = new GameState();

@@ -15,6 +15,7 @@ namespace GaeBullBing.Presentation.Monsters
         private SpriteRenderer spriteRenderer;
         private SpriteRenderer healthBackgroundRenderer;
         private SpriteRenderer healthFillRenderer;
+        private BoardCharacterShadow shadow;
         private Transform healthFill;
         private Coroutine layoutRoutine;
         private bool isMoving;
@@ -22,6 +23,7 @@ namespace GaeBullBing.Presentation.Monsters
         private float healthBarY = .48f;
         private Sprite frontSprite;
         private Sprite backSprite;
+        private Vector3 shadowGroundPosition;
 
         public int InstanceId { get; private set; }
         public event Action<int, int> TileChanged;
@@ -44,6 +46,9 @@ namespace GaeBullBing.Presentation.Monsters
             backSprite = back != null ? back : front;
             ApplyDirectionForDeparture(tileIndex);
             transform.position = GetStandingPosition(tileIndex);
+            shadowGroundPosition = GetShadowPosition(tileIndex);
+            shadow = BoardCharacterShadow.Create(transform,
+                spriteRenderer != null ? spriteRenderer.sortingLayerID : 0);
             if (spriteRenderer != null && spriteRenderer.sprite != null)
                 healthBarY = Mathf.Max(.48f, spriteRenderer.sprite.bounds.max.y * spriteRenderer.transform.localScale.y + .08f);
             CreateHealthBar();
@@ -78,6 +83,7 @@ namespace GaeBullBing.Presentation.Monsters
             if (spriteRenderer != null) spriteRenderer.enabled = visible;
             if (healthBackgroundRenderer != null) healthBackgroundRenderer.enabled = visible;
             if (healthFillRenderer != null) healthFillRenderer.enabled = visible;
+            shadow?.SetVisible(visible);
         }
 
         private void LateUpdate()
@@ -85,7 +91,10 @@ namespace GaeBullBing.Presentation.Monsters
             // Player tile presses are visual-only, so stationary monsters must follow
             // the pressed tile every frame without changing their logical tile index.
             if (!isMoving && boardView != null)
+            {
                 transform.position = GetStandingPosition(CurrentTileIndex);
+                shadowGroundPosition = GetShadowPosition(CurrentTileIndex);
+            }
 
             // The sprite is raised for readability, but depth belongs to its ground position.
             var order = BoardDepthSorting.GetActorOrder(
@@ -94,6 +103,7 @@ namespace GaeBullBing.Presentation.Monsters
             if (spriteRenderer != null) spriteRenderer.sortingOrder = order;
             if (healthBackgroundRenderer != null) healthBackgroundRenderer.sortingOrder = order + 1;
             if (healthFillRenderer != null) healthFillRenderer.sortingOrder = order + 2;
+            shadow?.Set(shadowGroundPosition);
         }
 
         public void UpdateHealth(float current, float max)
@@ -132,11 +142,13 @@ namespace GaeBullBing.Presentation.Monsters
                     elapsed += Time.deltaTime;
                     var progress = Mathf.Clamp01(elapsed / stepDuration);
                     var position = Vector3.Lerp(from, to, Mathf.SmoothStep(0f, 1f, progress)) + positionOffset;
+                    shadowGroundPosition = position - visualHeightOffset;
                     position.y += Mathf.Sin(progress * Mathf.PI) * hopHeight;
                     transform.position = position;
                     yield return null;
                 }
                 transform.position = to + positionOffset;
+                shadowGroundPosition = to + positionOffset - visualHeightOffset;
             }
             isMoving = false;
             transform.position = GetStandingPosition(CurrentTileIndex);
@@ -155,15 +167,22 @@ namespace GaeBullBing.Presentation.Monsters
             {
                 var progress = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / stepDuration));
                 transform.position = Vector3.Lerp(from, to, progress) + positionOffset;
+                shadowGroundPosition = transform.position - visualHeightOffset;
                 yield return null;
             }
             transform.position = to + positionOffset;
+            shadowGroundPosition = to + positionOffset - visualHeightOffset;
             isMoving = false;
         }
 
         private Vector3 GetStandingPosition(int tileIndex)
         {
             return GetTileGroundPosition(tileIndex) + positionOffset;
+        }
+
+        private Vector3 GetShadowPosition(int tileIndex)
+        {
+            return GetTileGroundPosition(tileIndex) + positionOffset - visualHeightOffset;
         }
 
         private Vector3 GetTileGroundPosition(int tileIndex)

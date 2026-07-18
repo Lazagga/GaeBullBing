@@ -49,6 +49,7 @@ namespace GaeBullBing.Presentation.Game
         private float defensePerDifficultyLevel;
         private Dice3DPresenter dice3DPresenter;
         private StonePresenter stonePresenter;
+        private TowerAttackEffectPresenter attackEffectPresenter;
         private string nextMonsterOverrideId;
         private BoardTileSelectionView tileSelectionView;
         private bool pendingDiceTuning;
@@ -275,10 +276,14 @@ namespace GaeBullBing.Presentation.Game
             if (dice3DPresenter == null)
                 dice3DPresenter = gameObject.AddComponent<Dice3DPresenter>();
             dice3DPresenter.Initialize(boardView);
+            attackEffectPresenter = GetComponent<TowerAttackEffectPresenter>();
+            if (attackEffectPresenter == null)
+                attackEffectPresenter = gameObject.AddComponent<TowerAttackEffectPresenter>();
+            attackEffectPresenter.Initialize(boardView);
             stonePresenter = GetComponent<StonePresenter>();
             if (stonePresenter == null)
                 stonePresenter = gameObject.AddComponent<StonePresenter>();
-            stonePresenter.Initialize(boardView);
+            stonePresenter.Initialize(boardView, attackEffectPresenter.PhysicsAttackSprite);
             tileSelectionView = boardView.GetComponent<BoardTileSelectionView>();
             if (tileSelectionView == null) tileSelectionView = boardView.gameObject.AddComponent<BoardTileSelectionView>();
             tileSelectionView.Initialize(boardView);
@@ -881,20 +886,47 @@ namespace GaeBullBing.Presentation.Game
             var attackResults = Session.ResolveTowerCombat(towerDefinitions, towerUpgradeDefinitions);
             stonePresenter.Refresh(State);
             boardView.RefreshTileEffects(State.Board);
-            foreach (var attackResult in attackResults)
-                yield return monsterPresenter.ApplyAttack(attackResult);
+            var illuminatedLineTowerIds = new HashSet<int>();
+            for (var attackIndex = 0; attackIndex < attackResults.Count; attackIndex++)
+            {
+                var attackResult = attackResults[attackIndex];
+                if (attackResult.VisualKind != TowerAttackVisualKind.AreaTile)
+                {
+                    yield return PlayAttackResult(attackResult, illuminatedLineTowerIds);
+                    continue;
+                }
+
+                var areaTowerId = attackResult.TowerInstanceId;
+                var areaTiles = new List<int>();
+                while (attackIndex < attackResults.Count &&
+                       attackResults[attackIndex].VisualKind == TowerAttackVisualKind.AreaTile &&
+                       attackResults[attackIndex].TowerInstanceId == areaTowerId)
+                {
+                    areaTiles.Add(attackResults[attackIndex].TargetTileIndex);
+                    attackIndex++;
+                }
+                attackIndex--;
+                if (attackEffectPresenter != null)
+                    yield return attackEffectPresenter.PlayAreaTiles(State, areaTowerId, areaTiles);
+            }
             var statusResults = Session.ResolveMonsterTurnEndEffects();
             var consumedStoneResults = new HashSet<int>();
+            for (var resultIndex = 0; resultIndex < statusResults.Count; resultIndex++)
+            {
+                if (statusResults[resultIndex].VisualKind == TowerAttackVisualKind.RollingStone) continue;
+                consumedStoneResults.Add(resultIndex);
+                yield return PlayAttackResult(statusResults[resultIndex], illuminatedLineTowerIds);
+            }
             yield return stonePresenter.PlayResolvedMovement(
                 State,
                 statusResults,
                 consumedStoneResults,
-                monsterPresenter.ApplyAttack);
+                result => PlayAttackResult(result, illuminatedLineTowerIds));
             stonePresenter.Refresh(State);
             boardView.RefreshTileEffects(State.Board);
             for (var resultIndex = 0; resultIndex < statusResults.Count; resultIndex++)
                 if (!consumedStoneResults.Contains(resultIndex))
-                    yield return monsterPresenter.ApplyAttack(statusResults[resultIndex]);
+                    yield return PlayAttackResult(statusResults[resultIndex], illuminatedLineTowerIds);
             var killedCount = 0;
             foreach (var attackResult in attackResults)
                 if (attackResult.Killed) killedCount++;
@@ -908,6 +940,15 @@ namespace GaeBullBing.Presentation.Game
             RefreshOpenTileInformation();
             diceHud.BeginPlayerTurn();
             isBusy = false;
+        }
+
+        private IEnumerator PlayAttackResult(
+            TowerAttackResult result,
+            ISet<int> illuminatedLineTowerIds)
+        {
+            if (attackEffectPresenter != null)
+                yield return attackEffectPresenter.Play(State, result, illuminatedLineTowerIds);
+            yield return monsterPresenter.ApplyAttack(result);
         }
     }
 }
