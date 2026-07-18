@@ -673,7 +673,10 @@ namespace GaeBullBing.Presentation.Game
         private IEnumerator PrepareTileSelectionRoutine()
         {
             yield return cameraController.ReturnToOverview();
-            tileSelectionView.BeginSelection(SelectTeleportDestination);
+            tileSelectionView.BeginSelection(
+                SelectTeleportDestination,
+                tileIndex => ShowTileInformation(tileIndex, false),
+                HideTileInformation);
         }
 
         public void SelectCornerElement(TowerElement element)

@@ -13,6 +13,8 @@ namespace GaeBullBing.Presentation.Board
 
         private BoardTilemapView boardView;
         private Action<int> selected;
+        private Action<int> selectionHovered;
+        private Action selectionHoverExited;
         private Action<int> inspected;
         private Action inspectionClosed;
         private int hoveredIndex = -1;
@@ -20,10 +22,15 @@ namespace GaeBullBing.Presentation.Board
 
         public void Initialize(BoardTilemapView view) => boardView = view;
 
-        public void BeginSelection(Action<int> onSelected)
+        public void BeginSelection(
+            Action<int> onSelected,
+            Action<int> onHovered = null,
+            Action onHoverExited = null)
         {
             EndSelection();
             selected = onSelected;
+            selectionHovered = onHovered;
+            selectionHoverExited = onHoverExited;
         }
 
         public void EnableInspection(Action<int> onInspected, Action onClosed)
@@ -65,6 +72,8 @@ namespace GaeBullBing.Presentation.Board
         {
             SetHovered(-1);
             selected = null;
+            selectionHovered = null;
+            selectionHoverExited = null;
         }
 
         private int FindNearestTile(Vector3 world)
@@ -84,11 +93,18 @@ namespace GaeBullBing.Presentation.Board
             if (hoveredIndex >= 0)
                 boardView.Tilemap.SetColor(boardView.GetCellPosition(hoveredIndex), hoveredOriginalColor);
             hoveredIndex = index;
-            if (hoveredIndex < 0) return;
+            if (hoveredIndex < 0)
+            {
+                if (selected != null)
+                    selectionHoverExited?.Invoke();
+                return;
+            }
             var cell = boardView.GetCellPosition(hoveredIndex);
             boardView.Tilemap.SetTileFlags(cell, TileFlags.None);
             hoveredOriginalColor = boardView.Tilemap.GetColor(cell);
             boardView.Tilemap.SetColor(cell, hoverColor);
+            if (selected != null)
+                selectionHovered?.Invoke(hoveredIndex);
         }
 
         private void Select(int index)

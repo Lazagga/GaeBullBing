@@ -12,6 +12,9 @@ namespace GaeBullBing.Presentation.UI
         [SerializeField] private RectTransform menuRoot;
         [SerializeField] private Button primaryButton;
         [SerializeField] private Text primaryText;
+        [SerializeField] private Sprite buildButtonSprite;
+        [SerializeField] private Sprite enhanceButtonSprite;
+        [SerializeField] private Vector2 primaryButtonImageSize = new(160f, 78f);
         [SerializeField] private RectTransform choicesRoot;
         [SerializeField] private Button[] choiceButtons = Array.Empty<Button>();
         [SerializeField] private Vector2 screenOffset = new(0f, 145f);
@@ -97,6 +100,14 @@ namespace GaeBullBing.Presentation.UI
             menuRoot.gameObject.SetActive(true);
             choicesRoot.gameObject.SetActive(false);
             primaryButton.gameObject.SetActive(true);
+            var actionSprite = hasTower ? enhanceButtonSprite : buildButtonSprite;
+            var image = primaryButton.image;
+            image.sprite = actionSprite;
+            image.type = Image.Type.Simple;
+            image.preserveAspect = true;
+            image.color = Color.white;
+            ((RectTransform)primaryButton.transform).sizeDelta = primaryButtonImageSize;
+            primaryText.gameObject.SetActive(actionSprite == null);
             primaryText.text = hasTower ? "ENFORCE" : "BUILD";
             primaryButton.onClick.RemoveAllListeners();
             primaryButton.onClick.AddListener(() => onPrimarySelected());
