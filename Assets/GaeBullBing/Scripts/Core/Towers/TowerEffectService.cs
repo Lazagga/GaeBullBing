@@ -64,13 +64,15 @@ namespace GaeBullBing.Core.Towers
                     const int chainDistance = 3;
                     for (var distance = 1; distance <= chainDistance; distance++)
                     {
-                        var chainedTile = (attackTileIndex + distance) % state.Board.TileCount;
+                        var chainedTile = (attackTileIndex - distance + state.Board.TileCount) %
+                            state.Board.TileCount;
                         attackedTiles.Add(chainedTile);
                     }
                     AddAreaTileMarkers(attack.TowerInstanceId, attackedTiles, extra);
                     for (var distance = 1; distance <= chainDistance; distance++)
                     {
-                        var chainedTile = (attackTileIndex + distance) % state.Board.TileCount;
+                        var chainedTile = (attackTileIndex - distance + state.Board.TileCount) %
+                            state.Board.TileCount;
                         DamageTile(state, chainedTile, attack.Damage, attack.TowerInstanceId, extra,
                             TowerAttackVisualKind.None);
                     }

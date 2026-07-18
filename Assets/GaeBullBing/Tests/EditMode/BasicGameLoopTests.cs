@@ -503,6 +503,53 @@ namespace GaeBullBing.Tests.EditMode
         }
 
         [Test]
+        public void ChainTile_TransfersThreeTilesBackwardFromAttackedTile()
+        {
+            var state = new GameState();
+            new BoardService().Initialize(state.Board);
+            var tower = new GaeBullBing.Core.Towers.TowerState
+            {
+                InstanceId = 1,
+                DefinitionId = "TOW_04"
+            };
+            tower.AppliedUpgradeIds.Add("UPG_ELECTRIC_T2_02");
+            state.Board.Tiles[5].Tower = tower;
+
+            var target = CreateMonster(1, 10, 100, 10);
+            var firstChain = CreateMonster(2, 9, 100, 9);
+            var secondChain = CreateMonster(3, 8, 100, 8);
+            var thirdChain = CreateMonster(4, 7, 100, 7);
+            var forwardTile = CreateMonster(5, 11, 100, 11);
+            var towerBasedTile = CreateMonster(6, 4, 100, 4);
+            state.Monsters.Add(target);
+            state.Monsters.Add(firstChain);
+            state.Monsters.Add(secondChain);
+            state.Monsters.Add(thirdChain);
+            state.Monsters.Add(forwardTile);
+            state.Monsters.Add(towerBasedTile);
+
+            var results = new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(
+                state,
+                new[]
+                {
+                    new GaeBullBing.Core.Towers.TowerAttackResult(
+                        1, target.InstanceId, 10f, false, targetTileIndex: 10)
+                });
+
+            Assert.That(firstChain.CurrentHealth, Is.EqualTo(90f));
+            Assert.That(secondChain.CurrentHealth, Is.EqualTo(90f));
+            Assert.That(thirdChain.CurrentHealth, Is.EqualTo(90f));
+            Assert.That(forwardTile.CurrentHealth, Is.EqualTo(100f));
+            Assert.That(towerBasedTile.CurrentHealth, Is.EqualTo(100f));
+            var hasThirdChainMarker = false;
+            foreach (var result in results)
+                if (result.VisualKind == GaeBullBing.Core.Towers.TowerAttackVisualKind.AreaTile &&
+                    result.TargetTileIndex == 7)
+                    hasThirdChainMarker = true;
+            Assert.That(hasThirdChainMarker, Is.True);
+        }
+
+        [Test]
         public void AreaEffect_EmitsTileMarkersBeforeAreaDamage()
         {
             var state = CreateCombatState();
