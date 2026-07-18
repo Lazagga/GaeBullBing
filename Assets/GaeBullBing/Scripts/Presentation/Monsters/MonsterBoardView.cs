@@ -23,9 +23,16 @@ namespace GaeBullBing.Presentation.Monsters
         private float healthBarY = .48f;
         private Sprite frontSprite;
         private Sprite backSprite;
+        private Sprite flyingFrontSprite;
+        private Sprite flyingBackSprite;
+        private bool isBoss;
         private Vector3 shadowGroundPosition;
+        private Vector3 transitionOffset;
 
         public int InstanceId { get; private set; }
+        public Vector3 VisualCenterPosition => spriteRenderer != null
+            ? spriteRenderer.bounds.center
+            : transform.position;
         public event Action<int, int> TileChanged;
 
         public void Initialize(
@@ -34,7 +41,10 @@ namespace GaeBullBing.Presentation.Monsters
             int tileIndex,
             Vector3 baseVisualOffset,
             Sprite front,
-            Sprite back)
+            Sprite back,
+            Sprite flightFront = null,
+            Sprite flightBack = null,
+            bool boss = false)
         {
             InstanceId = instanceId;
             CurrentTileIndex = tileIndex;
@@ -44,6 +54,9 @@ namespace GaeBullBing.Presentation.Monsters
             spriteRenderer = GetComponentInChildren<SpriteRenderer>();
             frontSprite = front;
             backSprite = back != null ? back : front;
+            flyingFrontSprite = flightFront != null ? flightFront : front;
+            flyingBackSprite = flightBack != null ? flightBack : flyingFrontSprite;
+            isBoss = boss;
             ApplyDirectionForDeparture(tileIndex);
             transform.position = GetStandingPosition(tileIndex);
             shadowGroundPosition = GetShadowPosition(tileIndex);
@@ -59,6 +72,13 @@ namespace GaeBullBing.Presentation.Monsters
             var targetOffset = offset + visualHeightOffset;
             if (layoutRoutine != null) StopCoroutine(layoutRoutine);
             layoutRoutine = StartCoroutine(AnimateLayoutOffset(targetOffset));
+        }
+        public void SetTransitionOffset(Vector3 offset)
+        {
+            transitionOffset = offset;
+            if (isMoving || boardView == null) return;
+            transform.position = GetStandingPosition(CurrentTileIndex);
+            shadowGroundPosition = GetShadowPosition(CurrentTileIndex);
         }
         private IEnumerator AnimateLayoutOffset(Vector3 targetOffset)
         {
@@ -154,6 +174,44 @@ namespace GaeBullBing.Presentation.Monsters
             transform.position = GetStandingPosition(CurrentTileIndex);
         }
 
+        public IEnumerator MoveFlying(int startTileIndex, int distance, bool reachedBase)
+        {
+            isMoving = true;
+            var targetTileIndex = (startTileIndex + distance) %
+                GaeBullBing.Core.Board.BoardState.DefaultTileCount;
+            var from = GetTileGroundPosition(startTileIndex) + positionOffset;
+            var to = GetTileGroundPosition(targetTileIndex) + positionOffset;
+            ApplyBossDirection(startTileIndex, true);
+            var directionStep = 0;
+            var duration = stepDuration * Mathf.Max(1f, distance * .65f);
+            for (var elapsed = 0f; elapsed < duration; elapsed += Time.deltaTime)
+            {
+                var progress = Mathf.Clamp01(elapsed / duration);
+                var nextDirectionStep = Mathf.Min(Mathf.Max(0, distance - 1),
+                    Mathf.FloorToInt(progress * distance));
+                if (nextDirectionStep != directionStep)
+                {
+                    directionStep = nextDirectionStep;
+                    ApplyBossDirection(startTileIndex + directionStep, true);
+                }
+                var smooth = Mathf.SmoothStep(0f, 1f, progress);
+                var position = Vector3.Lerp(from, to, smooth);
+                position.y += .45f + Mathf.Sin(progress * Mathf.PI) * .25f;
+                transform.position = position;
+                shadowGroundPosition = Vector3.Lerp(from, to, smooth) - visualHeightOffset;
+                yield return null;
+            }
+
+            var previousTileIndex = CurrentTileIndex;
+            CurrentTileIndex = targetTileIndex;
+            TileChanged?.Invoke(previousTileIndex, targetTileIndex);
+            ApplyBossDirection(targetTileIndex, false);
+            transform.position = to;
+            shadowGroundPosition = to - visualHeightOffset;
+            isMoving = false;
+            if (!reachedBase) boardView.PlayPress(targetTileIndex);
+        }
+
         public IEnumerator PlayKnockback(int fromTileIndex, int toTileIndex)
         {
             if (fromTileIndex == toTileIndex) yield break;
@@ -177,12 +235,12 @@ namespace GaeBullBing.Presentation.Monsters
 
         private Vector3 GetStandingPosition(int tileIndex)
         {
-            return GetTileGroundPosition(tileIndex) + positionOffset;
+            return GetTileGroundPosition(tileIndex) + positionOffset + transitionOffset;
         }
 
         private Vector3 GetShadowPosition(int tileIndex)
         {
-            return GetTileGroundPosition(tileIndex) + positionOffset - visualHeightOffset;
+            return GetTileGroundPosition(tileIndex) + positionOffset + transitionOffset - visualHeightOffset;
         }
 
         private Vector3 GetTileGroundPosition(int tileIndex)
@@ -198,10 +256,28 @@ namespace GaeBullBing.Presentation.Monsters
         private void ApplyDirectionForDeparture(int tileIndex)
         {
             if (spriteRenderer == null || frontSprite == null) return;
+            if (isBoss)
+            {
+                ApplyBossDirection(tileIndex, false);
+                return;
+            }
             var tileCount = GaeBullBing.Core.Board.BoardState.DefaultTileCount;
             var normalized = (tileIndex % tileCount + tileCount) % tileCount;
             var line = normalized < 9 ? 0 : normalized < 18 ? 1 : normalized < 27 ? 2 : 3;
             spriteRenderer.sprite = line <= 1 ? backSprite : frontSprite;
+            spriteRenderer.flipX = line == 1 || line == 2;
+        }
+
+        private void ApplyBossDirection(int tileIndex, bool flying)
+        {
+            if (spriteRenderer == null) return;
+            var tileCount = GaeBullBing.Core.Board.BoardState.DefaultTileCount;
+            var normalized = (tileIndex % tileCount + tileCount) % tileCount;
+            var line = normalized < 9 ? 0 : normalized < 18 ? 1 : normalized < 27 ? 2 : 3;
+            var showBack = line <= 1;
+            spriteRenderer.sprite = flying
+                ? showBack ? flyingBackSprite : flyingFrontSprite
+                : showBack ? backSprite : frontSprite;
             spriteRenderer.flipX = line == 1 || line == 2;
         }
 

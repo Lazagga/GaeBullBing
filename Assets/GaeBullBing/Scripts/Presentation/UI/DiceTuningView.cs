@@ -40,7 +40,8 @@ namespace GaeBullBing.Presentation.UI
 
         private void Update()
         {
-            if (root == null || !root.activeInHierarchy || developerConsole != null && developerConsole.IsOpen) return;
+            if (root == null || !root.activeInHierarchy ||
+                developerConsole != null && (!developerConsole.GameplayInputEnabled || developerConsole.IsOpen)) return;
             var keyboard = Keyboard.current;
             if (keyboard == null) return;
 
@@ -94,9 +95,7 @@ namespace GaeBullBing.Presentation.UI
         private void ShowRewardStep()
         {
             currentStep = Step.Reward;
-            ResizePanel(new Vector2(680f, 260f));
             title.text = "출발지 통과 보상을 선택하세요";
-            ((RectTransform)title.transform).anchoredPosition = new Vector2(0f, 82f);
             display3D.HideDisplay();
             SetButtons(diceButtons, true);
             SetButtons(faceButtons, false);
@@ -124,10 +123,7 @@ namespace GaeBullBing.Presentation.UI
         private void ShowDiceStep()
         {
             currentStep = Step.Dice;
-            ResizePanel(new Vector2(680f, 500f));
             title.text = string.Empty;
-            ((RectTransform)title.transform).anchoredPosition = new Vector2(0f, 205f);
-            title.transform.SetAsLastSibling();
             SetButtons(diceButtons, false);
             SetButtons(faceButtons, false);
             SetDeltaButtons(false);
@@ -144,10 +140,6 @@ namespace GaeBullBing.Presentation.UI
             SetDeltaButtons(true);
             SetBack(true);
             display3D.ShowFaceSelection(index, RefreshSelectedFaceTitle);
-            title.transform.SetAsLastSibling();
-            decrementButton.transform.SetAsLastSibling();
-            incrementButton.transform.SetAsLastSibling();
-            if (backButton != null) backButton.transform.SetAsLastSibling();
         }
 
         private void RefreshSelectedFaceTitle()
@@ -185,8 +177,6 @@ namespace GaeBullBing.Presentation.UI
             decrementButton.gameObject.SetActive(active);
             incrementButton.gameObject.SetActive(active);
             if (!active) return;
-            ((RectTransform)decrementButton.transform).anchoredPosition = new Vector2(-145f, -165f);
-            ((RectTransform)incrementButton.transform).anchoredPosition = new Vector2(145f, -165f);
             SetButtonText(decrementButton, "-1");
             SetButtonText(incrementButton, "+1");
             BindDelta(decrementButton, -1);
@@ -198,7 +188,6 @@ namespace GaeBullBing.Presentation.UI
             if (backButton == null) return;
             backButton.gameObject.SetActive(active);
             if (!active) return;
-            ((RectTransform)backButton.transform).anchoredPosition = new Vector2(0f, -220f);
             SetButtonText(backButton, "뒤로가기");
             backButton.onClick.RemoveAllListeners();
             backButton.onClick.AddListener(() =>
@@ -207,8 +196,6 @@ namespace GaeBullBing.Presentation.UI
                 else ShowRewardStep();
             });
         }
-
-        private void ResizePanel(Vector2 size) => ((RectTransform)transform).sizeDelta = size;
 
         private static void SetButtons(IEnumerable<Button> buttons, bool active)
         {

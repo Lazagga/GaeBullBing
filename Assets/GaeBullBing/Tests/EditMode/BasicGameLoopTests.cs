@@ -595,6 +595,186 @@ namespace GaeBullBing.Tests.EditMode
             Object.DestroyImmediate(upgrade);
         }
 
+        [Test]
+        public void DifficultyService_EntersBossLevelAfterFiveNormalLevels()
+        {
+            var patterns = new GaeBullBing.Core.Monsters.DifficultyPatternData[5];
+            for (var index = 0; index < patterns.Length; index++)
+                patterns[index] = new GaeBullBing.Core.Monsters.DifficultyPatternData
+                {
+                    RequiredKills = index * 5,
+                    HealthMultiplier = 1f,
+                    MonsterIds = new[] { "MON_001" }
+                };
+            var service = new GaeBullBing.Core.Monsters.DifficultyService(patterns, 5, 1.2f);
+            var difficulty = new GaeBullBing.Core.Monsters.DifficultyState();
+            service.Reset(difficulty);
+
+            service.AddKills(difficulty, 25);
+
+            Assert.That(difficulty.Level, Is.EqualTo(6));
+            Assert.That(service.BossLevel, Is.EqualTo(6));
+            Assert.That(service.IsBossLevel(difficulty), Is.True);
+            Assert.That(service.GetRemainingKills(difficulty), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void Boss_IgnoresHealthMultiplierAndLevelDefenseBonus()
+        {
+            var state = new GameState();
+            var session = CreateSession(state);
+            session.StartNewGame();
+            state.Difficulty.Level = 6;
+            state.Difficulty.DefensePerLevel = 20f;
+            var definition = CreateMonsterDefinition("BOSS_001", MonsterTier.Boss, 6000, 4, 300f);
+
+            var boss = session.SpawnMonster(definition, 9f);
+            var damage = boss.ReceiveDamage(400f, state.Difficulty);
+
+            Assert.That(boss.MaxHealth, Is.EqualTo(6000f));
+            Assert.That(boss.GetDefense(state.Difficulty), Is.EqualTo(300f));
+            Assert.That(damage, Is.EqualTo(100f).Within(.0001f));
+            Object.DestroyImmediate(definition);
+        }
+
+        [Test]
+        public void Boss_FliesDirectlyPastTileFieldsAndPhysicsGuard()
+        {
+            var state = new GameState();
+            new BoardService().Initialize(state.Board);
+            state.Board.Tiles[0].FireTurnsRemaining = TileState.OneTurnEffectDuration;
+            state.Board.Tiles[1].FireTurnsRemaining = TileState.OneTurnEffectDuration;
+            state.Board.Tiles[2].IceTurnsRemaining = TileState.OneTurnEffectDuration;
+            state.Board.Tiles[3].Tower = new GaeBullBing.Core.Towers.TowerState
+            {
+                InstanceId = 1,
+                DefinitionId = "TOW_03"
+            };
+            state.Board.Tiles[3].Tower.AppliedUpgradeIds.Add("UPG_PHYSICS_T3_00");
+            var boss = new GaeBullBing.Core.Monsters.MonsterState
+            {
+                InstanceId = 99,
+                Tier = MonsterTier.Boss,
+                CurrentHealth = 6000,
+                MaxHealth = 6000,
+                CurrentTileIndex = 0,
+                MoveDistance = 4
+            };
+            state.Monsters.Add(boss);
+
+            var result = new GaeBullBing.Core.Monsters.MonsterService().MoveAll(state)[0];
+
+            Assert.That(result.IsBoss, Is.True);
+            Assert.That(result.Distance, Is.EqualTo(4));
+            Assert.That(boss.CurrentTileIndex, Is.EqualTo(4));
+            Assert.That(boss.BurnStacks, Is.EqualTo(0));
+            Assert.That(boss.PhysicsGuardConsumed, Is.False);
+        }
+
+        [Test]
+        public void Boss_EscapeCausesImmediateDefeatWithoutUsingEscapeCount()
+        {
+            var state = new GameState();
+            var session = CreateSession(state);
+            session.StartNewGame();
+            state.Monsters.Add(new GaeBullBing.Core.Monsters.MonsterState
+            {
+                InstanceId = 99,
+                Tier = MonsterTier.Boss,
+                CurrentHealth = 1,
+                CurrentTileIndex = 32,
+                DistanceTravelled = 32,
+                MoveDistance = 4
+            });
+
+            session.MoveMonsters();
+
+            Assert.That(state.CurrentPhase, Is.EqualTo(TurnPhase.Defeat));
+            Assert.That(state.EscapedMonsterCount, Is.EqualTo(0));
+            Assert.That(state.Monsters, Is.Empty);
+        }
+
+        [Test]
+        public void Boss_FeatherSealsHighestDamageTowerUntilBossPassesIt()
+        {
+            var state = new GameState();
+            var session = CreateSession(state);
+            session.StartNewGame();
+            state.Board.Tiles[2].Tower = new GaeBullBing.Core.Towers.TowerState
+            {
+                InstanceId = 1,
+                DefinitionId = "TOW_LOW"
+            };
+            state.Board.Tiles[8].Tower = new GaeBullBing.Core.Towers.TowerState
+            {
+                InstanceId = 2,
+                DefinitionId = "TOW_HIGH"
+            };
+            var low = CreateTowerDefinition("TOW_LOW", 10, 20);
+            var high = CreateTowerDefinition("TOW_HIGH", 30, 20);
+            var bossDefinition = CreateMonsterDefinition("BOSS_001", MonsterTier.Boss, 6000, 4, 300f);
+            var boss = session.SpawnMonster(bossDefinition);
+
+            var firstMove = session.MoveMonsters(new[] { low, high },
+                System.Array.Empty<GaeBullBing.Core.Data.TowerUpgradeDefinition>())[0];
+
+            Assert.That(state.Board.Tiles[8].HasBossFeather, Is.True);
+            Assert.That(state.Board.Tiles[8].Tower.IsFeatherSealed, Is.True);
+            Assert.That(firstMove.FeatherEvents[0].Type,
+                Is.EqualTo(GaeBullBing.Core.Monsters.BossFeatherEventType.Drop));
+            Assert.That(firstMove.FeatherEvents[0].TileIndex, Is.EqualTo(8));
+
+            var attacks = session.ResolveTowerCombat(new[] { low, high },
+                System.Array.Empty<GaeBullBing.Core.Data.TowerUpgradeDefinition>());
+            foreach (var attack in attacks)
+                Assert.That(attack.TowerInstanceId, Is.Not.EqualTo(2));
+
+            var secondMove = session.MoveMonsters(new[] { low, high },
+                System.Array.Empty<GaeBullBing.Core.Data.TowerUpgradeDefinition>())[0];
+            Assert.That(boss.CurrentTileIndex, Is.EqualTo(8));
+            Assert.That(state.Board.Tiles[8].HasBossFeather, Is.False);
+            Assert.That(state.Board.Tiles[8].Tower.IsFeatherSealed, Is.False);
+            Assert.That(secondMove.FeatherEvents[0].Type,
+                Is.EqualTo(GaeBullBing.Core.Monsters.BossFeatherEventType.Recover));
+
+            Object.DestroyImmediate(bossDefinition);
+            Object.DestroyImmediate(high);
+            Object.DestroyImmediate(low);
+        }
+
+        [Test]
+        public void Boss_IgnoresKnockbackAndVictoryTriggersWhenKilled()
+        {
+            var state = new GameState();
+            var session = CreateSession(state);
+            session.StartNewGame();
+            var bossDefinition = CreateMonsterDefinition("BOSS_001", MonsterTier.Boss, 100, 4, 0f);
+            var boss = session.SpawnMonster(bossDefinition);
+            boss.CurrentTileIndex = 5;
+            state.Board.Tiles[5].Tower = new GaeBullBing.Core.Towers.TowerState
+            {
+                InstanceId = 1,
+                DefinitionId = "TOW_03"
+            };
+            state.Board.Tiles[5].Tower.AppliedUpgradeIds.Add("UPG_PHYSICS_T3_02");
+            var tower = CreateTowerDefinition("TOW_03", 10, 1);
+
+            var results = session.ResolveTowerCombat(new[] { tower },
+                System.Array.Empty<GaeBullBing.Core.Data.TowerUpgradeDefinition>());
+
+            Assert.That(results[0].KnockbackApplied, Is.False);
+            Assert.That(boss.CurrentTileIndex, Is.EqualTo(5));
+            Assert.That(state.CurrentPhase, Is.EqualTo(TurnPhase.TowerCombat));
+
+            boss.CurrentHealth = 10;
+            session.ResolveTowerCombat(new[] { tower },
+                System.Array.Empty<GaeBullBing.Core.Data.TowerUpgradeDefinition>());
+            Assert.That(state.CurrentPhase, Is.EqualTo(TurnPhase.Victory));
+            Assert.That(state.BossDefeated, Is.True);
+            Object.DestroyImmediate(tower);
+            Object.DestroyImmediate(bossDefinition);
+        }
+
         private static GameState CreateCombatState()
         {
             var state = new GameState();
@@ -627,6 +807,31 @@ namespace GaeBullBing.Tests.EditMode
                 DistanceTravelled = distanceTravelled,
                 MoveDistance = 1
             };
+        }
+
+        private static GaeBullBing.Core.Data.MonsterDefinition CreateMonsterDefinition(
+            string id, MonsterTier tier, int maxHealth, int moveDistance, float defense)
+        {
+            var definition = ScriptableObject.CreateInstance<GaeBullBing.Core.Data.MonsterDefinition>();
+            SetPrivateField(definition, "id", id);
+            SetPrivateField(definition, "tier", tier);
+            SetPrivateField(definition, "maxHp", maxHealth);
+            SetPrivateField(definition, "moveDistance", moveDistance);
+            SetPrivateField(definition, "baseDefense", defense);
+            return definition;
+        }
+
+        private static GaeBullBing.Core.Data.TowerDefinition CreateTowerDefinition(
+            string id, int damage, int range)
+        {
+            var definition = ScriptableObject.CreateInstance<GaeBullBing.Core.Data.TowerDefinition>();
+            SetPrivateField(definition, "id", id);
+            SetPrivateField(definition, "element", TowerElement.Physics);
+            SetPrivateField(definition, "damage", damage);
+            SetPrivateField(definition, "range", range);
+            SetPrivateField(definition, "targetCount", 1);
+            SetPrivateField(definition, "attackCount", 1);
+            return definition;
         }
 
         private static System.Collections.Generic.IReadOnlyList<GaeBullBing.Core.Towers.TowerAttackResult> ResolveCombat(

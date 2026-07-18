@@ -6,6 +6,7 @@ using GaeBullBing.Core.Data;
 using GaeBullBing.Presentation.Board;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Serialization;
 
 namespace GaeBullBing.Presentation.Monsters
 {
@@ -19,6 +20,13 @@ namespace GaeBullBing.Presentation.Monsters
         [SerializeField] private Sprite foxBackSprite;
         [SerializeField] private Sprite squirrelFrontSprite;
         [SerializeField] private Sprite squirrelBackSprite;
+        [FormerlySerializedAs("crowStandingSprite")]
+        [SerializeField] private Sprite crowStandingFrontSprite;
+        [SerializeField] private Sprite crowStandingBackSprite;
+        [FormerlySerializedAs("crowFlyingSprite")]
+        [SerializeField] private Sprite crowFlyingFrontSprite;
+        [SerializeField] private Sprite crowFlyingBackSprite;
+        [SerializeField] private Sprite bossFeatherSprite;
         [SerializeField] private MonsterDefinition[] monsterDefinitions;
         [SerializeField] private GameObject overflowPanel;
         [SerializeField] private Text overflowText;
@@ -29,6 +37,22 @@ namespace GaeBullBing.Presentation.Monsters
         private int playerTileIndex;
         private bool hasPlayer;
         public MonsterDefinition[] MonsterDefinitions => monsterDefinitions;
+        public bool TryGetViewTransform(int instanceId, out Transform viewTransform)
+        {
+            if (views.TryGetValue(instanceId, out var view))
+            {
+                viewTransform = view.transform;
+                return true;
+            }
+            viewTransform = null;
+            return false;
+        }
+
+        public void SetTransitionOffset(Vector3 offset)
+        {
+            foreach (var view in views.Values)
+                view.SetTransitionOffset(offset);
+        }
         private static readonly Vector3[][] Slots = {
             new[] { Vector3.zero },
             new[] { new Vector3(-.18f,0), new Vector3(.18f,0) },
@@ -41,7 +65,8 @@ namespace GaeBullBing.Presentation.Monsters
 
         public void Spawn(MonsterState state)
         {
-            GetMonsterSprites(state.DefinitionId, out var frontSprite, out var backSprite);
+            GetMonsterSprites(state.DefinitionId, out var frontSprite, out var backSprite,
+                out var flightFrontSprite, out var flightBackSprite);
             var usePlayerAlignedArt = frontSprite != null;
             var monsterObject = new GameObject($"Monster {state.InstanceId} ({state.DefinitionId})");
             monsterObject.transform.SetParent(transform, false);
@@ -56,15 +81,21 @@ namespace GaeBullBing.Presentation.Monsters
                 state.CurrentTileIndex,
                 usePlayerAlignedArt ? Vector3.zero : new Vector3(0f, .22f, 0f),
                 usePlayerAlignedArt ? frontSprite : monsterSprite,
-                usePlayerAlignedArt ? backSprite : monsterSprite);
+                usePlayerAlignedArt ? backSprite : monsterSprite,
+                state.IsBoss ? flightFrontSprite : null,
+                state.IsBoss ? flightBackSprite : null,
+                state.IsBoss);
             view.TileChanged += OnMonsterTileChanged;
             view.UpdateHealth(state.CurrentHealth, state.MaxHealth);
             views.Add(state.InstanceId, view);
             states.Add(state.InstanceId, state);
         }
 
-        private void GetMonsterSprites(string definitionId, out Sprite frontSprite, out Sprite backSprite)
+        private void GetMonsterSprites(string definitionId, out Sprite frontSprite, out Sprite backSprite,
+            out Sprite flightFrontSprite, out Sprite flightBackSprite)
         {
+            flightFrontSprite = null;
+            flightBackSprite = null;
             switch (definitionId)
             {
                 case "MON_001":
@@ -79,6 +110,12 @@ namespace GaeBullBing.Presentation.Monsters
                     frontSprite = squirrelFrontSprite;
                     backSprite = squirrelBackSprite != null ? squirrelBackSprite : squirrelFrontSprite;
                     return;
+                case "BOSS_001":
+                    frontSprite = crowStandingFrontSprite != null ? crowStandingFrontSprite : monsterSprite;
+                    backSprite = crowStandingBackSprite != null ? crowStandingBackSprite : frontSprite;
+                    flightFrontSprite = crowFlyingFrontSprite != null ? crowFlyingFrontSprite : frontSprite;
+                    flightBackSprite = crowFlyingBackSprite != null ? crowFlyingBackSprite : flightFrontSprite;
+                    return;
                 default:
                     frontSprite = null;
                     backSprite = null;
@@ -91,7 +128,18 @@ namespace GaeBullBing.Presentation.Monsters
             if (!views.TryGetValue(result.InstanceId, out var view))
                 yield break;
 
-            yield return view.MoveSteps(result.StartTileIndex, result.Distance);
+            if (result.IsBoss)
+            {
+                foreach (var featherEvent in result.FeatherEvents)
+                    if (featherEvent.StepOffset == 0)
+                        yield return PlayFeatherEvent(featherEvent, view);
+                yield return view.MoveFlying(result.StartTileIndex, result.Distance, result.ReachedBase);
+                foreach (var featherEvent in result.FeatherEvents)
+                    if (featherEvent.StepOffset > 0)
+                        yield return PlayFeatherEvent(featherEvent, view);
+            }
+            else
+                yield return view.MoveSteps(result.StartTileIndex, result.Distance);
             if (result.ReachedBase)
             {
                 view.TileChanged -= OnMonsterTileChanged;
@@ -99,6 +147,33 @@ namespace GaeBullBing.Presentation.Monsters
                 states.Remove(result.InstanceId);
                 Destroy(view.gameObject);
             }
+        }
+
+        private IEnumerator PlayFeatherEvent(BossFeatherEvent featherEvent, MonsterBoardView bossView)
+        {
+            var target = boardView.GetWorldPosition(featherEvent.TileIndex) + new Vector3(0f, .12f, 0f);
+            var feather = new GameObject(featherEvent.Type == BossFeatherEventType.Drop
+                ? "Boss Feather Drop"
+                : "Boss Feather Recover");
+            feather.transform.SetParent(transform, false);
+            var renderer = feather.AddComponent<SpriteRenderer>();
+            renderer.sprite = bossFeatherSprite;
+            renderer.color = Color.white;
+            renderer.sortingOrder = 32760;
+            feather.transform.localScale = new Vector3(1.5f, 1.7f, 1f);
+            feather.transform.rotation = Quaternion.Euler(0f, 0f, -25f);
+            var dropping = featherEvent.Type == BossFeatherEventType.Drop;
+            var start = target + Vector3.up * (dropping ? 2f : 0f);
+            var end = dropping || bossView == null ? target : bossView.VisualCenterPosition;
+            for (var elapsed = 0f; elapsed < .55f; elapsed += Time.deltaTime)
+            {
+                var progress = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / .55f));
+                feather.transform.position = Vector3.Lerp(start, end, progress);
+                if (!dropping) renderer.color = new Color(1f, 1f, 1f, 1f - progress);
+                yield return null;
+            }
+            boardView.SetBossFeatherVisual(featherEvent.TileIndex, dropping);
+            Destroy(feather);
         }
 
         public void RefreshLayout() => ReflowAll();

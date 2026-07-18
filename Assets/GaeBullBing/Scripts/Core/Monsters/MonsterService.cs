@@ -8,18 +8,42 @@ namespace GaeBullBing.Core.Monsters
 {
     public readonly struct MonsterMoveResult
     {
-        public MonsterMoveResult(int instanceId, int startTileIndex, int distance, bool reachedBase)
+        public MonsterMoveResult(int instanceId, int startTileIndex, int distance, bool reachedBase,
+            bool isBoss = false, IReadOnlyList<BossFeatherEvent> featherEvents = null)
         {
             InstanceId = instanceId;
             StartTileIndex = startTileIndex;
             Distance = distance;
             ReachedBase = reachedBase;
+            IsBoss = isBoss;
+            FeatherEvents = featherEvents ?? Array.Empty<BossFeatherEvent>();
         }
 
         public int InstanceId { get; }
         public int StartTileIndex { get; }
         public int Distance { get; }
         public bool ReachedBase { get; }
+        public bool IsBoss { get; }
+        public IReadOnlyList<BossFeatherEvent> FeatherEvents { get; }
+
+        public MonsterMoveResult WithFeatherEvents(IReadOnlyList<BossFeatherEvent> events) =>
+            new(InstanceId, StartTileIndex, Distance, ReachedBase, IsBoss, events);
+    }
+
+    public enum BossFeatherEventType { Drop, Recover }
+
+    public readonly struct BossFeatherEvent
+    {
+        public BossFeatherEvent(BossFeatherEventType type, int tileIndex, int stepOffset)
+        {
+            Type = type;
+            TileIndex = tileIndex;
+            StepOffset = stepOffset;
+        }
+
+        public BossFeatherEventType Type { get; }
+        public int TileIndex { get; }
+        public int StepOffset { get; }
     }
 
     public sealed class MonsterService
@@ -33,11 +57,13 @@ namespace GaeBullBing.Core.Monsters
             if (definition == null)
                 throw new ArgumentNullException(nameof(definition));
 
-            var maxHealth = Math.Max(1f, definition.MaxHp * healthMultiplier);
+            var maxHealth = Math.Max(1f, definition.MaxHp *
+                (definition.Tier == MonsterTier.Boss ? 1f : healthMultiplier));
             var monster = new MonsterState
             {
                 InstanceId = nextInstanceId++,
                 DefinitionId = definition.Id,
+                Tier = definition.Tier,
                 CurrentHealth = maxHealth,
                 MaxHealth = maxHealth,
                 BaseDefense = definition.BaseDefense,
@@ -69,6 +95,18 @@ namespace GaeBullBing.Core.Monsters
                 if (monster.StunnedMovesRemaining > 0) monster.StunnedMovesRemaining--;
                 var startTileIndex = monster.CurrentTileIndex;
                 monster.TouchedFireThisMove = false;
+                if (monster.IsBoss)
+                {
+                    var bossDistance = cannotMove ? 0 : Math.Min(monster.MoveDistance, remainingToBase);
+                    monster.DistanceTravelled += bossDistance;
+                    monster.CurrentTileIndex = (monster.CurrentTileIndex + bossDistance) %
+                        BoardState.DefaultTileCount;
+                    var bossReachedBase = monster.DistanceTravelled >= BoardState.DefaultTileCount;
+                    results.Add(new MonsterMoveResult(monster.InstanceId, startTileIndex, bossDistance,
+                        bossReachedBase, true));
+                    if (bossReachedBase) reachedBase.Add(monster);
+                    continue;
+                }
                 ApplyFireTile(state, monster, monster.CurrentTileIndex);
 
                 var onIce = HasIce(state, monster.CurrentTileIndex);
@@ -109,7 +147,8 @@ namespace GaeBullBing.Core.Monsters
 
         private static bool TriggersPhysicsGuard(GameState state, MonsterState monster, int tileIndex)
         {
-            if (monster.PhysicsGuardConsumed || tileIndex < 0 || tileIndex >= state.Board.Tiles.Count)
+            if (monster.IsBoss || monster.PhysicsGuardConsumed || tileIndex < 0 ||
+                tileIndex >= state.Board.Tiles.Count)
                 return false;
 
             var tower = state.Board.Tiles[tileIndex].Tower;

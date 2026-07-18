@@ -12,14 +12,15 @@ namespace GaeBullBing.Presentation.Camera
         [SerializeField, Min(0.1f)] private float focusSize = 2.8f;
         [SerializeField, Min(0.1f)] private float overviewSize = 4.7f;
         [SerializeField] private BoardTilemapView boardView;
-        [SerializeField, Min(0f)] private float horizontalPadding = 0.65f;
-        [SerializeField, Min(0f)] private float verticalPadding = 1.35f;
+        [SerializeField, Min(0f)] private float horizontalPadding = 0.35f;
+        [SerializeField, Min(0f)] private float verticalPadding = 0.8f;
         [SerializeField, Min(0.01f)] private float transitionDuration = 0.45f;
         [SerializeField, Min(0.01f)] private float followSpeed = 8f;
 
         private UnityEngine.Camera controlledCamera;
         private Vector3 overviewPosition;
         private PlayerBoardView followTarget;
+        private Transform followTransform;
         private int transitionRevision;
         private int lastScreenWidth;
         private int lastScreenHeight;
@@ -48,12 +49,14 @@ namespace GaeBullBing.Presentation.Camera
             if (Screen.width != lastScreenWidth || Screen.height != lastScreenHeight)
             {
                 RefreshResponsiveOverview();
-                if (followTarget == null) controlledCamera.orthographicSize = overviewSize;
+                if (followTarget == null && followTransform == null) controlledCamera.orthographicSize = overviewSize;
             }
-            if (followTarget == null)
+            if (followTarget == null && followTransform == null)
                 return;
 
-            var followPosition = followTarget.CameraFollowPosition;
+            var followPosition = followTarget != null
+                ? followTarget.CameraFollowPosition
+                : followTransform.position;
             var targetPosition = new Vector3(followPosition.x, followPosition.y, transform.position.z);
             transform.position = Vector3.Lerp(transform.position, targetPosition, Time.deltaTime * followSpeed);
         }
@@ -62,9 +65,22 @@ namespace GaeBullBing.Presentation.Camera
         {
             var revision = ++transitionRevision;
             followTarget = target;
+            followTransform = null;
             var followPosition = target.CameraFollowPosition;
             yield return TransitionTo(
                 new Vector3(followPosition.x, followPosition.y, transform.position.z),
+                focusSize,
+                revision);
+        }
+
+        public IEnumerator FocusOn(Transform target)
+        {
+            var revision = ++transitionRevision;
+            followTarget = null;
+            followTransform = target;
+            var position = target.position;
+            yield return TransitionTo(
+                new Vector3(position.x, position.y, transform.position.z),
                 focusSize,
                 revision);
         }
@@ -73,6 +89,7 @@ namespace GaeBullBing.Presentation.Camera
         {
             var revision = ++transitionRevision;
             followTarget = null;
+            followTransform = null;
             var position = boardView.GetWorldPosition(tileIndex);
             yield return TransitionTo(
                 new Vector3(position.x, position.y, transform.position.z),
@@ -84,6 +101,7 @@ namespace GaeBullBing.Presentation.Camera
         {
             var revision = ++transitionRevision;
             followTarget = null;
+            followTransform = null;
             yield return TransitionTo(overviewPosition, overviewSize, revision);
         }
 

@@ -37,7 +37,8 @@ namespace GaeBullBing.Core.Towers
                 if (target != null && upgrades.Contains("UPG_FIRE_T2_04")) target.BurnStacks *= 2;
                 if (target != null && upgrades.Contains("UPG_ICE_T2_00") && target.FreezeImmuneLine < 0) target.FrozenMovesRemaining = 1;
                 if (target != null && upgrades.Contains("UPG_ELECTRIC_T3_02")) target.Shocked = true;
-                if (target != null && upgrades.Contains("UPG_PHYSICS_T3_02") && !target.KnockbackConsumed)
+                if (target != null && !target.IsBoss && upgrades.Contains("UPG_PHYSICS_T3_02") &&
+                    !target.KnockbackConsumed)
                 {
                     var fromTile = target.CurrentTileIndex;
                     var toTile = fromTile == 0 ? 0 : (fromTile + 35) % 36;
@@ -104,7 +105,7 @@ namespace GaeBullBing.Core.Towers
             foreach (var monster in state.Monsters)
             {
                 var tile = state.Board.Tiles[monster.CurrentTileIndex];
-                if (tile.FireTurnsRemaining > 0)
+                if (!monster.IsBoss && tile.FireTurnsRemaining > 0)
                 {
                     if (!monster.TouchedFireThisMove) monster.BurnStacks++;
                     ApplyDamage(state, monster, BurnDamage(monster), 0, results);
@@ -273,7 +274,8 @@ namespace GaeBullBing.Core.Towers
                 var fromTile = monster.CurrentTileIndex;
                 var actualDamage = monster.ReceiveDamage(damage, state.Difficulty);
                 var killed = monster.IsDead;
-                var knockbackApplied = appliesKnockback && !killed && !monster.KnockbackConsumed;
+                var knockbackApplied = appliesKnockback && !monster.IsBoss && !killed &&
+                    !monster.KnockbackConsumed;
                 var toTile = fromTile;
                 if (knockbackApplied)
                 {

@@ -54,6 +54,9 @@ namespace GaeBullBing.Core.Game
             State.Player.CurrentTileIndex = 0;
             State.Round = 1;
             State.EscapedMonsterCount = 0;
+            State.BossSpawned = false;
+            State.BossDefeated = false;
+            State.BossInstanceId = 0;
             State.ResetPermanentTowerBonuses();
             State.EscapeLimit = GameState.DefaultEscapeLimit;
             State.CurrentPhase = TurnPhase.PlayerTurnStart;
@@ -113,28 +116,140 @@ namespace GaeBullBing.Core.Game
             return distance;
         }
 
-        public System.Collections.Generic.IReadOnlyList<MonsterMoveResult> MoveMonsters()
+        public System.Collections.Generic.IReadOnlyList<MonsterMoveResult> MoveMonsters(
+            System.Collections.Generic.IReadOnlyList<TowerDefinition> definitions = null,
+            System.Collections.Generic.IReadOnlyList<TowerUpgradeDefinition> upgrades = null)
         {
             State.CurrentPhase = TurnPhase.MonsterMove;
-            var results = monsterService.MoveAll(State);
-            foreach (var result in results)
-                if (result.ReachedBase)
-                    State.EscapedMonsterCount++;
+            var bossEvents = new System.Collections.Generic.Dictionary<int,
+                System.Collections.Generic.List<BossFeatherEvent>>();
+            foreach (var monster in State.Monsters)
+            {
+                if (!monster.IsBoss || monster.BossInitialFeatherPlaced) continue;
+                monster.BossInitialFeatherPlaced = true;
+                var events = new System.Collections.Generic.List<BossFeatherEvent>();
+                bossEvents[monster.InstanceId] = events;
+                PlaceBossFeather(0, 0, events, definitions, upgrades);
+            }
 
-            if (State.EscapedMonsterCount >= State.EscapeLimit)
+            var moved = monsterService.MoveAll(State);
+            var results = new System.Collections.Generic.List<MonsterMoveResult>(moved.Count);
+            foreach (var result in moved)
+            {
+                if (!result.IsBoss)
+                {
+                    results.Add(result);
+                    if (result.ReachedBase)
+                        State.EscapedMonsterCount++;
+                    continue;
+                }
+
+                if (!bossEvents.TryGetValue(result.InstanceId, out var events))
+                    events = new System.Collections.Generic.List<BossFeatherEvent>();
+                for (var step = 1; step <= result.Distance; step++)
+                {
+                    var enteredTileIndex = (result.StartTileIndex + step) % State.Board.TileCount;
+                    RecoverBossFeather(enteredTileIndex, step, events);
+                    var line = enteredTileIndex switch { 9 => 1, 18 => 2, 27 => 3, _ => -1 };
+                    if (line >= 0)
+                        PlaceBossFeather(line, step, events, definitions, upgrades);
+                }
+                results.Add(result.WithFeatherEvents(events));
+                if (result.ReachedBase)
+                    State.CurrentPhase = TurnPhase.Defeat;
+            }
+
+            if (State.CurrentPhase != TurnPhase.Defeat &&
+                State.EscapedMonsterCount >= State.EscapeLimit)
                 State.CurrentPhase = TurnPhase.Defeat;
             return results;
+        }
+
+        private void PlaceBossFeather(
+            int line,
+            int stepOffset,
+            System.Collections.Generic.ICollection<BossFeatherEvent> events,
+            System.Collections.Generic.IReadOnlyList<TowerDefinition> definitions,
+            System.Collections.Generic.IReadOnlyList<TowerUpgradeDefinition> upgrades)
+        {
+            if (definitions == null) return;
+            TileState selected = null;
+            var selectedDamage = int.MinValue;
+            foreach (var tile in State.Board.Tiles)
+            {
+                if (!tile.HasTower || tile.Tower.IsFeatherSealed ||
+                    MonsterService.GetLine(tile.Index) != line)
+                    continue;
+                TowerDefinition definition = null;
+                foreach (var candidate in definitions)
+                    if (candidate != null && candidate.Id == tile.Tower.DefinitionId)
+                    {
+                        definition = candidate;
+                        break;
+                    }
+                if (definition == null) continue;
+                var damage = BuildCombatStats(definition, tile, upgrades).Damage;
+                if (damage <= selectedDamage) continue;
+                selected = tile;
+                selectedDamage = damage;
+            }
+
+            if (selected == null) return;
+            selected.Tower.IsFeatherSealed = true;
+            selected.HasBossFeather = true;
+            events.Add(new BossFeatherEvent(BossFeatherEventType.Drop, selected.Index, stepOffset));
+        }
+
+        private void RecoverBossFeather(
+            int tileIndex,
+            int stepOffset,
+            System.Collections.Generic.ICollection<BossFeatherEvent> events)
+        {
+            var tile = State.Board.Tiles[tileIndex];
+            if (!tile.HasBossFeather) return;
+            tile.HasBossFeather = false;
+            if (tile.HasTower) tile.Tower.IsFeatherSealed = false;
+            events.Add(new BossFeatherEvent(BossFeatherEventType.Recover, tileIndex, stepOffset));
+        }
+
+        private void ClearBossFeathers()
+        {
+            foreach (var tile in State.Board.Tiles)
+            {
+                tile.HasBossFeather = false;
+                if (tile.HasTower) tile.Tower.IsFeatherSealed = false;
+            }
+        }
+
+        private void ResolveBossVictory(
+            System.Collections.Generic.IEnumerable<TowerAttackResult> results)
+        {
+            if (State.BossInstanceId == 0 || State.BossDefeated) return;
+            foreach (var result in results)
+            {
+                if (!result.Killed || result.TargetInstanceId != State.BossInstanceId) continue;
+                State.BossDefeated = true;
+                State.CurrentPhase = TurnPhase.Victory;
+                ClearBossFeathers();
+                return;
+            }
         }
 
         public MonsterState SpawnMonster(MonsterDefinition definition, float healthMultiplier = 1f)
         {
             State.CurrentPhase = TurnPhase.MonsterSpawn;
-            return monsterService.Spawn(State, definition, healthMultiplier);
+            var monster = monsterService.Spawn(State, definition, healthMultiplier);
+            if (monster.IsBoss)
+            {
+                State.BossSpawned = true;
+                State.BossInstanceId = monster.InstanceId;
+            }
+            return monster;
         }
 
         public void CompleteRound()
         {
-            if (State.IsGameOver)
+            if (State.IsFinished)
                 return;
             State.CurrentPhase = TurnPhase.RoundEnd;
             foreach (var monster in State.Monsters)
@@ -199,17 +314,30 @@ namespace GaeBullBing.Core.Game
             }
             for (var index = 0; index < effects.Count; index++)
                 if (!consumedEffects.Contains(index)) combined.Add(effects[index]);
+            ResolveBossVictory(combined);
             return combined;
         }
 
-        public System.Collections.Generic.IReadOnlyList<TowerAttackResult> ResolveMonsterTurnEndEffects() =>
-            towerEffectService.ResolveMonsterTurnEnd(State);
+        public System.Collections.Generic.IReadOnlyList<TowerAttackResult> ResolveMonsterTurnEndEffects()
+        {
+            var results = towerEffectService.ResolveMonsterTurnEnd(State);
+            ResolveBossVictory(results);
+            return results;
+        }
 
-        public System.Collections.Generic.IReadOnlyList<TowerAttackResult> PlaceFireField(int tileIndex) =>
-            towerEffectService.PlaceFireField(State, tileIndex);
+        public System.Collections.Generic.IReadOnlyList<TowerAttackResult> PlaceFireField(int tileIndex)
+        {
+            var results = towerEffectService.PlaceFireField(State, tileIndex);
+            ResolveBossVictory(results);
+            return results;
+        }
 
-        public System.Collections.Generic.IReadOnlyList<TowerAttackResult> PlaceIceField(int tileIndex) =>
-            towerEffectService.PlaceIceField(State, tileIndex);
+        public System.Collections.Generic.IReadOnlyList<TowerAttackResult> PlaceIceField(int tileIndex)
+        {
+            var results = towerEffectService.PlaceIceField(State, tileIndex);
+            ResolveBossVictory(results);
+            return results;
+        }
 
         private TowerCombatStats BuildCombatStats(
             TowerDefinition definition,
@@ -223,7 +351,7 @@ namespace GaeBullBing.Core.Game
             var attackAdd = 0f; var attackMultiply = 1f;
             float? damageSet = null, rangeSet = null, targetSet = null, attackSet = null;
                 foreach (var id in tower.AppliedUpgradeIds)
-                    foreach (var upgrade in upgrades)
+                    foreach (var upgrade in upgrades ?? System.Array.Empty<TowerUpgradeDefinition>())
                         if (upgrade != null && upgrade.Id == id)
                             foreach (var modifier in upgrade.StatModifiers)
                             {

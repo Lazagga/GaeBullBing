@@ -6,6 +6,7 @@ namespace GaeBullBing.Core.Monsters
     {
         public int InstanceId { get; set; }
         public string DefinitionId { get; set; } = string.Empty;
+        public MonsterTier Tier { get; set; }
         public float CurrentHealth { get; set; }
         public float MaxHealth { get; set; }
         public float BaseDefense { get; set; }
@@ -27,12 +28,14 @@ namespace GaeBullBing.Core.Monsters
         public bool KnockbackImmunityPending { get; set; }
         public bool PhysicsGuardConsumed { get; set; }
         public bool PhysicsGuardTriggeredThisTurn { get; set; }
+        public bool BossInitialFeatherPlaced { get; set; }
 
         public bool IsDead => CurrentHealth <= 0;
+        public bool IsBoss => Tier == MonsterTier.Boss;
 
         public float GetDefense(DifficultyState difficulty)
         {
-            var levelBonus = difficulty == null
+            var levelBonus = difficulty == null || IsBoss
                 ? 0f
                 : Math.Max(0, difficulty.Level - 1) * Math.Max(0f, difficulty.DefensePerLevel);
             return Math.Max(0f, BaseDefense + levelBonus);

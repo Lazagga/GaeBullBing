@@ -9,7 +9,9 @@ namespace GaeBullBing.Presentation.UI
     public sealed class CornerActionMenu : MonoBehaviour
     {
         [SerializeField] private GameObject root;
+        [SerializeField] private GameObject elementRoot;
         [SerializeField] private Text title;
+        [SerializeField] private Text teleportTitle;
         [SerializeField] private Button fireButton;
         [SerializeField] private Button iceButton;
         [SerializeField] private Button physicsButton;
@@ -28,6 +30,7 @@ namespace GaeBullBing.Presentation.UI
         private void Update()
         {
             if (root == null || !root.activeInHierarchy || teleportRoot.activeInHierarchy ||
+                developerConsole != null && !developerConsole.GameplayInputEnabled ||
                 developerConsole != null && developerConsole.IsOpen) return;
             var keyboard = Keyboard.current;
             if (keyboard == null) return;
@@ -44,6 +47,8 @@ namespace GaeBullBing.Presentation.UI
 
         public void ShowElementSelection(Action<TowerElement> selected)
         {
+            root.SetActive(true);
+            elementRoot.SetActive(true);
             root.SetActive(true); teleportRoot.SetActive(false); title.text = "강화할 속성 선택";
             Bind(fireButton, TowerElement.Fire, selected); Bind(iceButton, TowerElement.Ice, selected);
             Bind(physicsButton, TowerElement.Physics, selected); Bind(electricButton, TowerElement.Electric, selected);
@@ -54,7 +59,10 @@ namespace GaeBullBing.Presentation.UI
 
         public void ShowTeleportSelection(int tileCount, int currentTile, Action<int> selected)
         {
+            root.SetActive(true);
+            elementRoot.SetActive(false);
             root.SetActive(true); SetElementButtons(false); teleportRoot.SetActive(true); title.text = "이동할 타일 선택";
+            if (teleportTitle != null) teleportTitle.text = title.text;
             tileDropdown.ClearOptions(); var options = new System.Collections.Generic.List<string>();
             for (var i = 0; i < tileCount; i++) options.Add(i == currentTile ? $"{i} (현재 위치)" : i.ToString());
             tileDropdown.AddOptions(options); tileDropdown.value = currentTile;
@@ -68,5 +76,6 @@ namespace GaeBullBing.Presentation.UI
         { fireButton.gameObject.SetActive(active); iceButton.gameObject.SetActive(active); physicsButton.gameObject.SetActive(active); electricButton.gameObject.SetActive(active); }
         private static void SetLabel(Button button, string value)
         { var label = button.GetComponentInChildren<Text>(); if (label != null) label.text = value; }
+
     }
 }

@@ -35,21 +35,25 @@ SpriteAtlas:
     - {fileID: 2800000, guid: 5174bd5291ee572408e8fdd353b76a3e, type: 3}
     - {fileID: 2800000, guid: bd728c51122bcc7429dc60c74ce372e0, type: 3}
     - {fileID: 2800000, guid: 971e29bfa1ddbb04e91e101ed306e6db, type: 3}
+    - {fileID: 2800000, guid: 399b55cbef3b9be41b53e2e705de23e6, type: 3}
     bindAsDefault: 1
     isAtlasV2: 0
     cachedData: {fileID: 0}
     packedSpriteRenderDataKeys:
     - bd728c51122bcc7429dc60c74ce372e0: 21300000
     - 5174bd5291ee572408e8fdd353b76a3e: 21300000
+    - 399b55cbef3b9be41b53e2e705de23e6: 21300000
     - 971e29bfa1ddbb04e91e101ed306e6db: 21300000
   m_MasterAtlas: {fileID: 0}
   m_PackedSprites:
   - {fileID: 21300000, guid: bd728c51122bcc7429dc60c74ce372e0, type: 3}
   - {fileID: 21300000, guid: 5174bd5291ee572408e8fdd353b76a3e, type: 3}
+  - {fileID: 21300000, guid: 399b55cbef3b9be41b53e2e705de23e6, type: 3}
   - {fileID: 21300000, guid: 971e29bfa1ddbb04e91e101ed306e6db, type: 3}
   m_PackedSpriteNamesToIndex:
   - Tile_Frozen
   - Tile_init
+  - Tile_feather
   - Tile_Ignite
   m_RenderDataMap: {}
   m_Tag: BoardTiles

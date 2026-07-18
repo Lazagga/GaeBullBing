@@ -17,10 +17,15 @@ namespace GaeBullBing.Presentation.Board
         private Action selectionHoverExited;
         private Action<int> inspected;
         private Action inspectionClosed;
+        private Func<bool> inputAllowed;
         private int hoveredIndex = -1;
         private Color hoveredOriginalColor;
 
-        public void Initialize(BoardTilemapView view) => boardView = view;
+        public void Initialize(BoardTilemapView view, Func<bool> canReceiveInput = null)
+        {
+            boardView = view;
+            inputAllowed = canReceiveInput;
+        }
 
         public void BeginSelection(
             Action<int> onSelected,
@@ -41,6 +46,11 @@ namespace GaeBullBing.Presentation.Board
 
         private void Update()
         {
+            if (inputAllowed != null && !inputAllowed())
+            {
+                SetHovered(-1);
+                return;
+            }
             if (selected == null && inspected == null || boardView == null || Mouse.current == null)
                 return;
 

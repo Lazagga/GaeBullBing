@@ -15,6 +15,11 @@ namespace GaeBullBing.Core.Game
         public int EscapedMonsterCount { get; set; }
         public int EscapeLimit { get; set; } = DefaultEscapeLimit;
         public bool IsGameOver => CurrentPhase == TurnPhase.Defeat;
+        public bool IsVictory => CurrentPhase == TurnPhase.Victory;
+        public bool IsFinished => IsGameOver || IsVictory;
+        public bool BossSpawned { get; set; }
+        public bool BossDefeated { get; set; }
+        public int BossInstanceId { get; set; }
         public PlayerState Player { get; } = new();
         public BoardState Board { get; } = new();
         public List<MonsterState> Monsters { get; } = new();

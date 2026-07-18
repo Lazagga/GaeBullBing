@@ -14,6 +14,7 @@ using GaeBullBing.Presentation.Monsters;
 using GaeBullBing.Presentation.Towers;
 using GaeBullBing.Presentation.UI;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using System.Text;
 using System.Globalization;
 
@@ -38,6 +39,7 @@ namespace GaeBullBing.Presentation.Game
         [SerializeField] private TowerDefinition[] towerDefinitions;
         [SerializeField] private TowerUpgradeDefinition[] towerUpgradeDefinitions;
         [SerializeField] private TileInfoPanelView tileInfoPanel;
+        [SerializeField] private GameFlowView gameFlowView;
         [SerializeField, Min(0f)] private float diceRevealDelay = 0.35f;
         [SerializeField, Range(0f, 1f)] private float cornerDamageRateBonus = .1f;
 
@@ -59,11 +61,31 @@ namespace GaeBullBing.Presentation.Game
         private int inspectedTileIndex = -1;
         private bool tileInfoReturnsToPlayerFocus;
         private const int MaxTowerElementDamageBonus = 30;
+        private static bool startImmediatelyAfterReload;
+        private static bool fadeTitleAfterReload;
+        private bool finishRoutineStarted;
 
         public GameState State { get; private set; }
         public GameSession Session { get; private set; }
+        public int TotalKills => State?.Difficulty?.KillCount ?? 0;
         public int RemainingKills => difficultyService == null ? 0 : difficultyService.GetRemainingKills(State.Difficulty);
         public bool IsFinalPattern => difficultyService != null && difficultyService.IsFinalPattern(State.Difficulty);
+        public bool IsBossLevel => difficultyService != null && difficultyService.IsBossLevel(State.Difficulty);
+        public bool AcceptsGameplayInput { get; private set; }
+
+        public bool FinishGameFromConsole(bool victory, out string message)
+        {
+            if (finishRoutineStarted)
+            {
+                message = "이미 게임 종료 처리가 진행 중입니다.";
+                return false;
+            }
+
+            message = victory ? "즉시 승리 처리합니다." : "즉시 패배 처리합니다.";
+            if (victory) FinishVictory();
+            else FinishDefeat();
+            return true;
+        }
 
         public bool SetNextDiceResults(int first, int second, out string message)
         {
@@ -221,6 +243,7 @@ namespace GaeBullBing.Presentation.Game
             difficultyService.AddKills(State.Difficulty, killedCount);
             diceHud.RefreshDifficulty();
             monsterPresenter.RefreshLayout();
+            if (State.IsVictory) FinishVictory();
         }
 
         private TowerUpgradeDefinition FindConsoleUpgrade(TowerElement element, int tier)
@@ -286,7 +309,7 @@ namespace GaeBullBing.Presentation.Game
             stonePresenter.Initialize(boardView, attackEffectPresenter.PhysicsAttackSprite);
             tileSelectionView = boardView.GetComponent<BoardTileSelectionView>();
             if (tileSelectionView == null) tileSelectionView = boardView.gameObject.AddComponent<BoardTileSelectionView>();
-            tileSelectionView.Initialize(boardView);
+            tileSelectionView.Initialize(boardView, () => AcceptsGameplayInput);
             tileSelectionView.EnableInspection(ShowTileInformation, CloseTileInformation);
             if (tileInfoPanel == null)
                 tileInfoPanel = FindFirstObjectByType<TileInfoPanelView>(FindObjectsInactive.Include);
@@ -384,6 +407,48 @@ namespace GaeBullBing.Presentation.Game
             monsterPresenter.SetPlayerTile(State.Player.CurrentTileIndex);
             stonePresenter.Refresh(State);
             diceHud.Bind(this);
+            if (gameFlowView == null)
+                gameFlowView = FindFirstObjectByType<GameFlowView>(FindObjectsInactive.Include);
+            gameFlowView?.Bind(this);
+            if (startImmediatelyAfterReload)
+            {
+                startImmediatelyAfterReload = false;
+                isBusy = true;
+                diceHud.SetBusy();
+                gameFlowView?.BeginRestart();
+            }
+            else
+            {
+                isBusy = true;
+                diceHud.SetBusy();
+                var fadePortraits = fadeTitleAfterReload;
+                fadeTitleAfterReload = false;
+                gameFlowView?.ShowTitle(fadePortraits);
+            }
+        }
+
+        public void StartGameFromTitle()
+        {
+            gameFlowView?.HideAll();
+            isBusy = false;
+            AcceptsGameplayInput = true;
+            diceHud.BeginPlayerTurn();
+        }
+
+        public void ReturnToTitle()
+        {
+            AcceptsGameplayInput = false;
+            startImmediatelyAfterReload = false;
+            fadeTitleAfterReload = true;
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
+
+        public void RestartGame()
+        {
+            AcceptsGameplayInput = false;
+            startImmediatelyAfterReload = true;
+            fadeTitleAfterReload = false;
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
 
         private void OnPlayerTileEntered(int tileIndex)
@@ -393,7 +458,7 @@ namespace GaeBullBing.Presentation.Game
 
         public void RollDiceAndMovePlayer()
         {
-            if (isBusy) return;
+            if (!AcceptsGameplayInput || isBusy) return;
             if (tileInfoOpen) StartCoroutine(CloseTileInformationThenRoll());
             else StartCoroutine(RollAndMoveRoutine());
         }
@@ -480,22 +545,26 @@ namespace GaeBullBing.Presentation.Game
 
         private string BuildTileDescription(int tileIndex)
         {
-            if (tileIndex == 0 || tileIndex == 18)
-                return "[모서리 능력: 이동]\n원하는 타일을 선택하고 해당 타일까지 시계 방향으로 이동합니다.\n이동 중 출발지를 통과하면 주사위 강화가 발생합니다.";
-            if (tileIndex == 9 || tileIndex == 27)
-                return $"[모서리 능력: 전체 강화]\n불·얼음·물리·전기 중 하나를 선택해 해당 속성 타워의 공격력을 영구적으로 {cornerDamageRateBonus * 100f:0}% 증가시킵니다.\n이후 건설되는 타워에도 적용됩니다.";
-
             var tile = State.Board.Tiles[tileIndex];
+            var featherDescription = tile.HasBossFeather
+                ? "[타일 상태: 깃털]\n이 타일의 타워는 까마귀가 깃털을 회수할 때까지 공격할 수 없습니다.\n\n"
+                : string.Empty;
+
+            if (tileIndex == 0 || tileIndex == 18)
+                return featherDescription + "[모서리 능력: 이동]\n원하는 타일을 선택하고 해당 타일까지 시계 방향으로 이동합니다.\n이동 중 출발지를 통과하면 주사위 강화가 발생합니다.";
+            if (tileIndex == 9 || tileIndex == 27)
+                return featherDescription + $"[모서리 능력: 전체 강화]\n불·얼음·물리·전기 중 하나를 선택해 해당 속성 타워의 공격력을 영구적으로 {cornerDamageRateBonus * 100f:0}% 증가시킵니다.\n이후 건설되는 타워에도 적용됩니다.";
+
             if (!tile.HasTower)
             {
                 var buildable = FindTowerDefinition(tile.BuildTowerDefinitionId);
-                return buildable == null
+                return featherDescription + (buildable == null
                     ? "[타워]\n설치된 타워가 없습니다."
-                    : $"[타워]\n설치된 타워가 없습니다.\n건설 가능: {buildable.DisplayName} ({GetElementName(buildable.Element)})";
+                    : $"[타워]\n설치된 타워가 없습니다.\n건설 가능: {buildable.DisplayName} ({GetElementName(buildable.Element)})");
             }
 
             var definition = FindTowerDefinition(tile.Tower.DefinitionId);
-            if (definition == null) return $"[타워]\n정의 없음: {tile.Tower.DefinitionId}";
+            if (definition == null) return featherDescription + $"[타워]\n정의 없음: {tile.Tower.DefinitionId}";
             var stats = CalculateDisplayStats(definition, tile);
             var builder = new StringBuilder();
             builder.AppendLine($"[타워] {definition.DisplayName}  T{tile.Tower.UpgradeTier}");
@@ -510,7 +579,7 @@ namespace GaeBullBing.Presentation.Game
                 var upgrade = FindUpgradeDefinition(id);
                 builder.AppendLine(upgrade == null ? $"• {id}" : $"• T{upgrade.Tier} {upgrade.DisplayName}\n  {upgrade.Description}");
             }
-            return builder.ToString().TrimEnd();
+            return featherDescription + builder.ToString().TrimEnd();
         }
 
         private string BuildMonsterDescription(int tileIndex)
@@ -862,24 +931,63 @@ namespace GaeBullBing.Presentation.Game
             isBusy = true;
             diceHud.SetBusy();
 
-            var scheduledMonsterId = difficultyService.GetNextMonsterId(State.Difficulty);
-            var monsterId = string.IsNullOrEmpty(nextMonsterOverrideId) ? scheduledMonsterId : nextMonsterOverrideId;
-            nextMonsterOverrideId = null;
-            var definition = monsterDatabase.Get(monsterId);
-            var spawnedMonster = Session.SpawnMonster(definition,
-                difficultyService.GetHealthMultiplier(State.Difficulty));
-            monsterPresenter.Spawn(spawnedMonster);
-            var moveResults = Session.MoveMonsters();
-            foreach (var result in moveResults)
-                yield return monsterPresenter.Move(result);
-            monsterPresenter.RefreshLayout();
+            if (difficultyService.IsBossLevel(State.Difficulty))
+            {
+                nextMonsterOverrideId = null;
+                if (!State.BossSpawned)
+                {
+                    var bossDefinition = FindBossDefinition();
+                    if (bossDefinition == null)
+                    {
+                        Debug.LogError("BOSS_001 MonsterDefinition을 찾을 수 없습니다.", this);
+                        State.CurrentPhase = TurnPhase.Defeat;
+                    }
+                    else
+                    {
+                        var boss = Session.SpawnMonster(bossDefinition, 1f);
+                        monsterPresenter.Spawn(boss);
+                    }
+                }
+            }
+            else
+            {
+                var scheduledMonsterId = difficultyService.GetNextMonsterId(State.Difficulty);
+                var monsterId = string.IsNullOrEmpty(nextMonsterOverrideId)
+                    ? scheduledMonsterId
+                    : nextMonsterOverrideId;
+                nextMonsterOverrideId = null;
+                var definition = monsterDatabase.Get(monsterId);
+                var spawnedMonster = Session.SpawnMonster(definition,
+                    difficultyService.GetHealthMultiplier(State.Difficulty));
+                monsterPresenter.Spawn(spawnedMonster);
+            }
 
             if (State.IsGameOver)
             {
-                radialMenu.Hide();
-                RefreshOpenTileInformation();
-                diceHud.ShowGameOver(State.EscapedMonsterCount, State.EscapeLimit);
-                isBusy = false;
+                FinishDefeat();
+                yield break;
+            }
+
+            var moveResults = Session.MoveMonsters(towerDefinitions, towerUpgradeDefinitions);
+            diceHud.RefreshPlayerHealth();
+            foreach (var result in moveResults)
+            {
+                if (result.IsBoss &&
+                    monsterPresenter.TryGetViewTransform(result.InstanceId, out var bossTransform))
+                {
+                    yield return cameraController.FocusOn(bossTransform);
+                    yield return monsterPresenter.Move(result);
+                    yield return cameraController.ReturnToOverview();
+                }
+                else
+                    yield return monsterPresenter.Move(result);
+            }
+            monsterPresenter.RefreshLayout();
+            boardView.RefreshTileEffects(State.Board);
+
+            if (State.IsGameOver)
+            {
+                FinishDefeat();
                 yield break;
             }
 
@@ -909,6 +1017,12 @@ namespace GaeBullBing.Presentation.Game
                 if (attackEffectPresenter != null)
                     yield return attackEffectPresenter.PlayAreaTiles(State, areaTowerId, areaTiles);
             }
+            if (State.IsVictory)
+            {
+                boardView.RefreshTileEffects(State.Board);
+                FinishVictory();
+                yield break;
+            }
             var statusResults = Session.ResolveMonsterTurnEndEffects();
             var consumedStoneResults = new HashSet<int>();
             for (var resultIndex = 0; resultIndex < statusResults.Count; resultIndex++)
@@ -935,10 +1049,71 @@ namespace GaeBullBing.Presentation.Game
             difficultyService.AddKills(State.Difficulty, killedCount);
             diceHud.RefreshDifficulty();
 
+            if (State.IsVictory)
+            {
+                boardView.RefreshTileEffects(State.Board);
+                FinishVictory();
+                yield break;
+            }
+
             Session.CompleteRound();
 
             RefreshOpenTileInformation();
             diceHud.BeginPlayerTurn();
+            isBusy = false;
+        }
+
+        private MonsterDefinition FindBossDefinition()
+        {
+            foreach (var definition in monsterDefinitions)
+                if (definition != null &&
+                    (definition.Tier == MonsterTier.Boss || definition.Id == "BOSS_001"))
+                    return definition;
+            return null;
+        }
+
+        private void FinishVictory()
+        {
+            if (finishRoutineStarted) return;
+            finishRoutineStarted = true;
+            AcceptsGameplayInput = false;
+            isBusy = true;
+            diceHud.SetBusy();
+            radialMenu.Hide();
+            cornerActionMenu?.Hide();
+            HideTileInformation();
+            StartCoroutine(FinishVictoryRoutine());
+        }
+
+        private void FinishDefeat()
+        {
+            if (finishRoutineStarted) return;
+            finishRoutineStarted = true;
+            AcceptsGameplayInput = false;
+            isBusy = true;
+            diceHud.SetBusy();
+            radialMenu.Hide();
+            cornerActionMenu?.Hide();
+            diceTuningView?.Hide();
+            HideTileInformation();
+            StartCoroutine(FinishDefeatRoutine());
+        }
+
+        private IEnumerator FinishVictoryRoutine()
+        {
+            if (gameFlowView != null)
+                yield return gameFlowView.PlayOutro();
+            diceHud.ShowGameClear();
+            gameFlowView?.ShowVictory();
+            isBusy = false;
+        }
+
+        private IEnumerator FinishDefeatRoutine()
+        {
+            if (gameFlowView != null)
+                yield return gameFlowView.PlayOutro();
+            diceHud.ShowGameOver(State.EscapedMonsterCount, State.EscapeLimit);
+            gameFlowView?.ShowDefeat();
             isBusy = false;
         }
 

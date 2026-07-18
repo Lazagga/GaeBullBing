@@ -12,6 +12,7 @@ namespace GaeBullBing.Presentation.Board
         [SerializeField] private TileBase normalTile;
         [SerializeField] private TileBase frozenTile;
         [SerializeField] private TileBase igniteTile;
+        [SerializeField] private TileBase featherTile;
         [SerializeField] private bool buildOnAwake = true;
         [SerializeField, Min(0f)] private float playerPressDepth = 0.1f;
         [SerializeField, Min(0.01f)] private float playerPressDuration = 0.07f;
@@ -19,6 +20,8 @@ namespace GaeBullBing.Presentation.Board
         private Tilemap tilemap;
         private readonly Dictionary<int, Coroutine> pressRoutines = new();
         private readonly float[] pressAmounts = new float[BoardState.DefaultTileCount];
+        private readonly float[] transitionOffsets = new float[BoardState.DefaultTileCount];
+        private BoardState currentBoardState;
 
         public Tilemap Tilemap => tilemap != null ? tilemap : tilemap = GetComponent<Tilemap>();
 
@@ -61,24 +64,24 @@ namespace GaeBullBing.Presentation.Board
         public void RefreshTileEffects(BoardState board)
         {
             if (board == null) return;
+            currentBoardState = board;
             var count = Mathf.Min(board.TileCount, BoardLayout.Cells.Count);
             for (var index = 0; index < count; index++)
             {
                 var state = board.Tiles[index];
-                var tile = state.FireTurnsRemaining > 0 && igniteTile != null
-                    ? igniteTile
-                    : state.IceTurnsRemaining > 0 && frozenTile != null
-                        ? frozenTile
-                        : normalTile;
+                var tile = state.HasBossFeather && featherTile != null
+                    ? featherTile
+                    : state.FireTurnsRemaining > 0 && igniteTile != null
+                        ? igniteTile
+                        : state.IceTurnsRemaining > 0 && frozenTile != null
+                            ? frozenTile
+                            : normalTile;
                 Tilemap.SetTile(GetCellPosition(index), tile);
+                Tilemap.SetColor(GetCellPosition(index), Color.white);
                 ApplyPressTransform(index);
             }
 
-            Tilemap.RefreshAllTiles();
-            ConfigureSorting();
-            var tilemapRenderer = GetComponent<TilemapRenderer>();
-            tilemapRenderer.enabled = false;
-            tilemapRenderer.enabled = true;
+            RefreshRendererSorting();
         }
 
         public Vector3Int GetCellPosition(int tileIndex)
@@ -90,6 +93,32 @@ namespace GaeBullBing.Presentation.Board
         public Vector3 GetWorldPosition(int tileIndex) =>
             Tilemap.GetCellCenterWorld(GetCellPosition(tileIndex));
 
+        public void SetBossFeatherVisual(int tileIndex, bool active)
+        {
+            if (tileIndex < 0 || tileIndex >= BoardLayout.Cells.Count) return;
+            if (currentBoardState != null)
+            {
+                RefreshTileEffects(currentBoardState);
+                return;
+            }
+            var cell = GetCellPosition(tileIndex);
+            Tilemap.SetTileFlags(cell, TileFlags.None);
+            Tilemap.SetTile(cell, active && featherTile != null ? featherTile : normalTile);
+            Tilemap.SetColor(cell, Color.white);
+            ApplyPressTransform(tileIndex);
+            RefreshRendererSorting();
+        }
+
+        private void RefreshRendererSorting()
+        {
+            Tilemap.RefreshAllTiles();
+            ConfigureSorting();
+            var tilemapRenderer = GetComponent<TilemapRenderer>();
+            if (tilemapRenderer == null) return;
+            tilemapRenderer.enabled = false;
+            tilemapRenderer.enabled = true;
+        }
+
         public Vector3 GetPlayerStandWorldPosition(int tileIndex) =>
             GetWorldPosition(tileIndex) + GetTileVisualWorldOffset(tileIndex);
 
@@ -97,7 +126,23 @@ namespace GaeBullBing.Presentation.Board
         {
             if (tileIndex < 0 || tileIndex >= pressAmounts.Length)
                 return Vector3.zero;
-            return Tilemap.transform.TransformVector(Vector3.down * (playerPressDepth * pressAmounts[tileIndex]));
+            var localOffset = Vector3.up * transitionOffsets[tileIndex] +
+                Vector3.down * (playerPressDepth * pressAmounts[tileIndex]);
+            return Tilemap.transform.TransformVector(localOffset);
+        }
+
+        public void SetTransitionOffset(int tileIndex, float localYOffset)
+        {
+            if (tileIndex < 0 || tileIndex >= transitionOffsets.Length)
+                return;
+            transitionOffsets[tileIndex] = localYOffset;
+            ApplyPressTransform(tileIndex);
+        }
+
+        public void SetAllTransitionOffsets(float localYOffset)
+        {
+            for (var index = 0; index < transitionOffsets.Length; index++)
+                SetTransitionOffset(index, localYOffset);
         }
 
         public Vector3 GetBoardCenterWorld()
@@ -199,6 +244,7 @@ namespace GaeBullBing.Presentation.Board
             var cell = GetCellPosition(tileIndex);
             Tilemap.SetTileFlags(cell, TileFlags.None);
             Tilemap.SetTransformMatrix(cell, Matrix4x4.TRS(
+                Vector3.up * transitionOffsets[tileIndex] +
                 Vector3.down * (playerPressDepth * pressAmounts[tileIndex]),
                 Quaternion.identity,
                 Vector3.one));

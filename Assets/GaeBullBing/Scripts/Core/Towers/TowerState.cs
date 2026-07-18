@@ -27,5 +27,6 @@ namespace GaeBullBing.Core.Towers
         public List<int> StoneTraversalTiles { get; } = new();
         public StoneExitAnimation StoneExitAnimation { get; set; }
         public int StoneExitTileIndex { get; set; } = -1;
+        public bool IsFeatherSealed { get; set; }
     }
 }

@@ -102,8 +102,15 @@ namespace GaeBullBing.Core.Monsters
         public bool IsFinalPattern(DifficultyState state) =>
             GetPatternIndex(state.KillCount) >= patterns.Length - 1;
 
+        public const int FinalBossLevel = 6;
+        public int BossLevel => FinalBossLevel;
+
+        public bool IsBossLevel(DifficultyState state) =>
+            GetLevel(state.KillCount) >= BossLevel;
+
         public int GetRemainingKills(DifficultyState state)
         {
+            if (IsBossLevel(state)) return 0;
             var killsIntoCurrentLevel = Math.Max(0, state.KillCount) % killsPerLevel;
             return killsPerLevel - killsIntoCurrentLevel;
         }

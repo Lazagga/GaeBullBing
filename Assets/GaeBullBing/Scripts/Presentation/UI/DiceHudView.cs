@@ -11,6 +11,7 @@ namespace GaeBullBing.Presentation.UI
         [SerializeField] private DeveloperConsoleView developerConsole;
         [SerializeField] private Text remainingKillsText;
         [SerializeField] private DiceFaceListView diceFaceListView;
+        [SerializeField] private Image[] playerHealthHearts;
 
         private GameController controller;
 
@@ -24,12 +25,14 @@ namespace GaeBullBing.Presentation.UI
             rollButton.onClick.AddListener(OnRollClicked);
             BeginPlayerTurn();
             RefreshDifficulty();
+            RefreshPlayerHealth();
         }
 
         private void Update()
         {
             var keyboard = Keyboard.current;
-            if (keyboard == null || developerConsole != null && developerConsole.IsOpen)
+            if (keyboard == null || controller == null || !controller.AcceptsGameplayInput ||
+                developerConsole != null && developerConsole.IsOpen)
                 return;
             if ((keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame) &&
                 rollButton.gameObject.activeInHierarchy && rollButton.interactable)
@@ -59,6 +62,14 @@ namespace GaeBullBing.Presentation.UI
         {
             rollButton.gameObject.SetActive(false);
             rollButton.interactable = false;
+            if (remainingKillsText != null) remainingKillsText.text = "게임 오버";
+        }
+
+        public void ShowGameClear()
+        {
+            rollButton.gameObject.SetActive(false);
+            rollButton.interactable = false;
+            if (remainingKillsText != null) remainingKillsText.text = "게임 클리어!";
         }
 
         public void SetResults(int first, int second) { }
@@ -66,11 +77,27 @@ namespace GaeBullBing.Presentation.UI
         public void RefreshDifficulty()
         {
             if (remainingKillsText == null || controller == null) return;
-            remainingKillsText.text = $"다음 난이도까지 {controller.RemainingKills}킬";
+            remainingKillsText.text = $"총 포획 {controller.TotalKills}마리";
         }
 
         public void RefreshDiceFaces() => diceFaceListView?.Refresh();
 
-        private void OnRollClicked() => controller.RollDiceAndMovePlayer();
+        public void RefreshPlayerHealth()
+        {
+            if (controller == null || playerHealthHearts == null) return;
+            var remainingHealth = Mathf.Clamp(
+                controller.State.EscapeLimit - controller.State.EscapedMonsterCount,
+                0,
+                playerHealthHearts.Length);
+            for (var index = 0; index < playerHealthHearts.Length; index++)
+                if (playerHealthHearts[index] != null)
+                    playerHealthHearts[index].gameObject.SetActive(index < remainingHealth);
+        }
+
+        private void OnRollClicked()
+        {
+            if (controller != null && controller.AcceptsGameplayInput)
+                controller.RollDiceAndMovePlayer();
+        }
     }
 }

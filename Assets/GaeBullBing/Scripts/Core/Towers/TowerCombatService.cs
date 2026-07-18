@@ -79,7 +79,7 @@ namespace GaeBullBing.Core.Towers
             for (var tileIndex = state.Board.Tiles.Count - 1; tileIndex >= 0; tileIndex--)
             {
                 var tile = state.Board.Tiles[tileIndex];
-                if (!tile.HasTower ||
+                if (!tile.HasTower || tile.Tower.IsFeatherSealed ||
                     !statsByDefinitionId.TryGetValue(tile.Tower.DefinitionId, out var stats))
                     continue;
 
@@ -97,7 +97,8 @@ namespace GaeBullBing.Core.Towers
             for (var tileIndex = state.Board.Tiles.Count - 1; tileIndex >= 0; tileIndex--)
             {
                 var tile = state.Board.Tiles[tileIndex];
-                if (!tile.HasTower || !statsByTowerInstanceId.TryGetValue(tile.Tower.InstanceId, out var stats))
+                if (!tile.HasTower || tile.Tower.IsFeatherSealed ||
+                    !statsByTowerInstanceId.TryGetValue(tile.Tower.InstanceId, out var stats))
                     continue;
                 var tower = tile.Tower; var upgrades = tower.AppliedUpgradeIds;
                 if (tower.BonusAttackTurnsRemaining > 0) tower.BonusAttackTurnsRemaining--;
