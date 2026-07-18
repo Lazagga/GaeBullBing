@@ -169,7 +169,7 @@ namespace GaeBullBing.Core.Towers
                     }
 
                     stone.StoneTraversalTiles.Add(stone.StoneTileIndex);
-                    DamageTile(state, stone.StoneTileIndex, damage, stone.InstanceId, results);
+                    ResolveStoneAttack(state, stone, damage, results);
                     stone.StoneDamageMultiplier = Math.Max(0f, stone.StoneDamageMultiplier - .1f);
                     if (IsCorner(stone.StoneTileIndex)) stone.StoneActive = false;
                 }
@@ -181,5 +181,45 @@ namespace GaeBullBing.Core.Towers
 
         private static bool IsCorner(int tileIndex) =>
             tileIndex == 0 || tileIndex == 9 || tileIndex == 18 || tileIndex == 27;
+
+        private static void ResolveStoneAttack(
+            GameState state,
+            TowerState sourceTower,
+            int damage,
+            ICollection<TowerAttackResult> results)
+        {
+            var appliesKnockback = sourceTower.AppliedUpgradeIds.Contains("UPG_PHYSICS_T3_02");
+            foreach (var monster in new List<MonsterState>(state.Monsters))
+            {
+                if (monster.IsDead || monster.CurrentTileIndex != sourceTower.StoneTileIndex) continue;
+
+                var fromTile = monster.CurrentTileIndex;
+                var actualDamage = monster.Shocked ? (int)Math.Ceiling(damage * 1.3f) : damage;
+                monster.CurrentHealth -= actualDamage;
+                var killed = monster.IsDead;
+                var knockbackApplied = appliesKnockback && !killed && !monster.KnockbackConsumed;
+                var toTile = fromTile;
+                if (knockbackApplied)
+                {
+                    toTile = fromTile == 0
+                        ? 0
+                        : (fromTile + state.Board.TileCount - 1) % state.Board.TileCount;
+                    monster.KnockbackImmunityPending = true;
+                    monster.CurrentTileIndex = toTile;
+                    if (toTile != fromTile)
+                        monster.DistanceTravelled = Math.Max(0, monster.DistanceTravelled - 1);
+                }
+
+                results.Add(new TowerAttackResult(
+                    sourceTower.InstanceId,
+                    monster.InstanceId,
+                    actualDamage,
+                    killed,
+                    knockbackApplied,
+                    fromTile,
+                    toTile,
+                    fromTile));
+            }
+        }
     }
 }
