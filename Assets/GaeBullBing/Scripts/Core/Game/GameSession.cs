@@ -172,7 +172,7 @@ namespace GaeBullBing.Core.Game
                 foreach (var candidate in definitions)
                     if (candidate != null && candidate.Id == tile.Tower.DefinitionId) { definition = candidate; break; }
                 if (definition != null)
-                    stats[tile.Tower.InstanceId] = BuildCombatStats(definition, tile.Tower, upgrades);
+                    stats[tile.Tower.InstanceId] = BuildCombatStats(definition, tile, upgrades);
             }
             var attacks = towerCombatService.ResolveByTower(State, stats);
             var effects = towerEffectService.ResolveAfterAttacks(State, attacks);
@@ -209,9 +209,10 @@ namespace GaeBullBing.Core.Game
 
         private TowerCombatStats BuildCombatStats(
             TowerDefinition definition,
-            TowerState tower,
+            TileState tile,
             System.Collections.Generic.IReadOnlyList<TowerUpgradeDefinition> upgrades)
         {
+            var tower = tile.Tower;
             var damageAdd = 0f; var damageMultiply = 1f;
             var rangeAdd = 0f; var rangeMultiply = 1f;
             var targetAdd = 0f; var targetMultiply = 1f;
@@ -234,11 +235,30 @@ namespace GaeBullBing.Core.Game
                                 }
                             }
             return new TowerCombatStats(
-                Math.Max(0, (int)Math.Round(damageSet ?? (definition.Damage + damageAdd) * damageMultiply * (1f + State.PermanentAllTowerDamageRateBonus + State.GetPermanentTowerDamageRateBonus(definition.Element)))),
+                Math.Max(0, (int)Math.Round(damageSet ?? (definition.Damage + damageAdd) * damageMultiply *
+                    (1f + State.PermanentAllTowerDamageRateBonus +
+                     State.GetPermanentTowerDamageRateBonus(definition.Element) +
+                     State.GetPermanentLineTowerDamageRateBonus(MonsterService.GetLine(tile.Index)) +
+                     GetLineAuraDamageRateBonus(tile)))),
                 Math.Max(0, (int)Math.Round(rangeSet ?? (definition.Range + rangeAdd) * rangeMultiply)),
                 Math.Max(1, (int)Math.Round(targetSet ?? (definition.TargetCount + targetAdd) * targetMultiply)),
                 Math.Max(1, (int)Math.Round(attackSet ?? (definition.AttackCount + attackAdd) * attackMultiply)));
         }
+
+        private float GetLineAuraDamageRateBonus(TileState targetTile)
+        {
+            var targetLine = MonsterService.GetLine(targetTile.Index);
+            var rate = 0f;
+            foreach (var tile in State.Board.Tiles)
+                if (tile.HasTower && tile.Tower.InstanceId != targetTile.Tower.InstanceId &&
+                    MonsterService.GetLine(tile.Index) == targetLine &&
+                    tile.Tower.AppliedUpgradeIds.Contains("UPG_PHYSICS_T2_03"))
+                    rate += .2f;
+            return rate;
+        }
+
+        public void AddPermanentLineTowerDamageRateBonus(int line, float amount) =>
+            State.AddPermanentLineTowerDamageRateBonus(line, amount);
 
         public void AddPermanentTowerDamageRateBonus(TowerElement element, float amount) =>
             State.AddPermanentTowerDamageRateBonus(element, amount);

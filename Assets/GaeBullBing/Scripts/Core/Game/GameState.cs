@@ -24,6 +24,7 @@ namespace GaeBullBing.Core.Game
         public int LastMoveDistance { get; set; }
         public Dictionary<TowerElement, float> PermanentTowerDamageRateBonuses { get; } = new();
         public float PermanentAllTowerDamageRateBonus { get; private set; }
+        private readonly float[] permanentLineTowerDamageRateBonuses = new float[4];
 
         public float GetPermanentTowerDamageRateBonus(TowerElement element) =>
             PermanentTowerDamageRateBonuses.TryGetValue(element, out var value) ? value : 0f;
@@ -39,10 +40,22 @@ namespace GaeBullBing.Core.Game
             if (amount > 0f) PermanentAllTowerDamageRateBonus += amount;
         }
 
+        public float GetPermanentLineTowerDamageRateBonus(int line) =>
+            line >= 0 && line < permanentLineTowerDamageRateBonuses.Length
+                ? permanentLineTowerDamageRateBonuses[line]
+                : 0f;
+
+        public void AddPermanentLineTowerDamageRateBonus(int line, float amount)
+        {
+            if (line >= 0 && line < permanentLineTowerDamageRateBonuses.Length && amount > 0f)
+                permanentLineTowerDamageRateBonuses[line] += amount;
+        }
+
         public void ResetPermanentTowerBonuses()
         {
             PermanentTowerDamageRateBonuses.Clear();
             PermanentAllTowerDamageRateBonus = 0f;
+            System.Array.Clear(permanentLineTowerDamageRateBonuses, 0, permanentLineTowerDamageRateBonuses.Length);
         }
     }
 

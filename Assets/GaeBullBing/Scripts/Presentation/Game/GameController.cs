@@ -361,10 +361,19 @@ namespace GaeBullBing.Presentation.Game
         {
             playerView.Initialize(boardView, State.Player.CurrentTileIndex);
             playerView.TileMoveStarted += monsterPresenter.SetPlayerTile;
-            playerView.TileEntered += monsterPresenter.SetPlayerTile;
+            playerView.TileEntered += OnPlayerTileEntered;
             monsterPresenter.SetPlayerTile(State.Player.CurrentTileIndex);
             stonePresenter.Refresh(State);
             diceHud.Bind(this);
+        }
+
+        private void OnPlayerTileEntered(int tileIndex)
+        {
+            monsterPresenter.SetPlayerTile(tileIndex);
+            if (tileIndex < 0 || tileIndex >= State.Board.TileCount) return;
+            var tile = State.Board.Tiles[tileIndex];
+            if (tile.HasTower && tile.Tower.AppliedUpgradeIds.Contains("UPG_PHYSICS_T2_04"))
+                Session.AddPermanentLineTowerDamageRateBonus(MonsterService.GetLine(tileIndex), .1f);
         }
 
         public void RollDiceAndMovePlayer()
@@ -445,7 +454,7 @@ namespace GaeBullBing.Presentation.Game
 
             var definition = FindTowerDefinition(tile.Tower.DefinitionId);
             if (definition == null) return $"[타워]\n정의 없음: {tile.Tower.DefinitionId}";
-            var stats = CalculateDisplayStats(definition, tile.Tower);
+            var stats = CalculateDisplayStats(definition, tile);
             var builder = new StringBuilder();
             builder.AppendLine($"[타워] {definition.DisplayName}  T{tile.Tower.UpgradeTier}");
             builder.AppendLine($"속성: {GetElementName(definition.Element)}");
@@ -491,8 +500,9 @@ namespace GaeBullBing.Presentation.Game
             return string.Join(", ", values);
         }
 
-        private (int damage, int range, int targets, int attacks) CalculateDisplayStats(TowerDefinition definition, TowerState tower)
+        private (int damage, int range, int targets, int attacks) CalculateDisplayStats(TowerDefinition definition, TileState tile)
         {
+            var tower = tile.Tower;
             var damageAdd = 0f; var damageMultiply = 1f;
             var rangeAdd = 0f; var rangeMultiply = 1f;
             var targetAdd = 0f; var targetMultiply = 1f;
@@ -516,10 +526,26 @@ namespace GaeBullBing.Presentation.Game
                 }
             }
             return (
-                Mathf.Max(0, Mathf.RoundToInt(damageSet ?? (definition.Damage + damageAdd) * damageMultiply * (1f + State.PermanentAllTowerDamageRateBonus + State.GetPermanentTowerDamageRateBonus(definition.Element)))),
+                Mathf.Max(0, Mathf.RoundToInt(damageSet ?? (definition.Damage + damageAdd) * damageMultiply *
+                    (1f + State.PermanentAllTowerDamageRateBonus +
+                     State.GetPermanentTowerDamageRateBonus(definition.Element) +
+                     State.GetPermanentLineTowerDamageRateBonus(MonsterService.GetLine(tile.Index)) +
+                     GetLineAuraDamageRateBonus(tile)))),
                 Mathf.Max(0, Mathf.RoundToInt(rangeSet ?? (definition.Range + rangeAdd) * rangeMultiply)),
                 Mathf.Max(1, Mathf.RoundToInt(targetSet ?? (definition.TargetCount + targetAdd) * targetMultiply)),
                 Mathf.Max(1, Mathf.RoundToInt(attackSet ?? (definition.AttackCount + attackAdd) * attackMultiply)));
+        }
+
+        private float GetLineAuraDamageRateBonus(TileState targetTile)
+        {
+            var line = MonsterService.GetLine(targetTile.Index);
+            var rate = 0f;
+            foreach (var tile in State.Board.Tiles)
+                if (tile.HasTower && tile.Tower.InstanceId != targetTile.Tower.InstanceId &&
+                    MonsterService.GetLine(tile.Index) == line &&
+                    tile.Tower.AppliedUpgradeIds.Contains("UPG_PHYSICS_T2_03"))
+                    rate += .2f;
+            return rate;
         }
 
         private TowerUpgradeDefinition FindUpgradeDefinition(string id)

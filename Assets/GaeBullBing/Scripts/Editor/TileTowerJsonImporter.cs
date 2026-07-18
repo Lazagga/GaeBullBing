@@ -79,8 +79,8 @@ namespace GaeBullBing.Editor
                 if (!Enum.TryParse(item.element, true, out TowerElement element))
                     throw new InvalidOperationException($"Invalid upgrade element: {item.element}");
                 foreach (var effect in item.effect_ids ?? Array.Empty<EffectJson>())
-                    if (!TowerEffectCatalog.IsDeclared(effect.id))
-                        Debug.LogWarning($"{item.id} references an undeclared code effect: {effect.id}");
+                    if (!TowerEffectCatalog.IsImplemented(effect.id))
+                        Debug.LogWarning($"{item.id} references an unimplemented code effect: {effect.id}");
                 var definition = FindOrCreate<TowerUpgradeDefinition>(UpgradeFolder, item.id);
                 var serialized = new SerializedObject(definition);
                 serialized.FindProperty("id").stringValue = item.id;

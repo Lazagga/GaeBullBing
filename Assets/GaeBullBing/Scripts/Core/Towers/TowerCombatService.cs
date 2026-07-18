@@ -90,6 +90,7 @@ namespace GaeBullBing.Core.Towers
                 var tower = tile.Tower; var upgrades = tower.AppliedUpgradeIds;
                 if (tower.BonusAttackTurnsRemaining > 0) tower.BonusAttackTurnsRemaining--;
                 else tower.BonusAttackCount = 0;
+                if (upgrades.Contains("UPG_PHYSICS_T2_03")) continue;
                 if (upgrades.Contains("UPG_PHYSICS_T2_01") && tower.AttackCooldownRounds > 0) { tower.AttackCooldownRounds--; continue; }
                 if (upgrades.Contains("UPG_PHYSICS_T2_00") && !tower.StoneActive)
                 { tower.StoneActive=true; tower.StoneTileIndex=tile.Index; tower.StoneDamageMultiplier=1f; tower.StoneBaseDamage=stats.Damage; }
@@ -97,7 +98,13 @@ namespace GaeBullBing.Core.Towers
                 if (upgrades.Contains("UPG_ELECTRIC_T3_00")) { ResolveLineAttack(state,tile,stats.Damage,results); continue; }
                 if (upgrades.Contains("UPG_ELECTRIC_T3_01")) { ResolveRandomElectric(state,tile,stats.Damage,results); continue; }
                 if (upgrades.Contains("UPG_ICE_T3_00")) stats = new TowerCombatStats(stats.Damage,stats.Range,int.MaxValue,stats.AttackCount);
-                for (var attack = 0; attack < Math.Max(1, stats.AttackCount+tower.BonusAttackCount); attack++) ResolveTowerAttack(state,tile,stats,results);
+                for (var attack = 0; attack < Math.Max(1, stats.AttackCount+tower.BonusAttackCount); attack++)
+                {
+                    if (upgrades.Contains("UPG_FIRE_T2_03") || upgrades.Contains("UPG_ICE_T2_03"))
+                        ResolveTileAreaAttack(state, tile, stats, results);
+                    else
+                        ResolveTowerAttack(state,tile,stats,results);
+                }
                 if (upgrades.Contains("UPG_PHYSICS_T2_01")) tower.AttackCooldownRounds=2;
                 if (upgrades.Contains("UPG_ELECTRIC_T2_01")) BuffAttackedTileTower(state,results,tower.InstanceId);
             }
@@ -157,6 +164,39 @@ namespace GaeBullBing.Core.Towers
                     tower.TargetInstanceIds.Add(target.InstanceId);
             }
 
+            state.Monsters.RemoveAll(monster => monster.IsDead);
+        }
+
+        private static void ResolveTileAreaAttack(
+            GameState state,
+            TileState tile,
+            TowerCombatStats stats,
+            ICollection<TowerAttackResult> results)
+        {
+            var tower = tile.Tower;
+            var candidates = new List<MonsterState>();
+            foreach (var monster in state.Monsters)
+                if (!monster.IsDead && GetBoardDistance(tile.Index, monster.CurrentTileIndex) <= stats.Range)
+                    candidates.Add(monster);
+            candidates.Sort((left, right) => CompareTargets(tower, tile.Index, left, right));
+
+            var selectedTiles = new HashSet<int>();
+            foreach (var candidate in candidates)
+            {
+                if (selectedTiles.Count >= stats.TargetCount) break;
+                selectedTiles.Add(candidate.CurrentTileIndex);
+            }
+
+            tower.TargetInstanceIds.Clear();
+            foreach (var monster in new List<MonsterState>(state.Monsters))
+            {
+                if (monster.IsDead || !selectedTiles.Contains(monster.CurrentTileIndex)) continue;
+                var actualDamage = monster.Shocked ? (int)Math.Ceiling(stats.Damage * 1.3) : stats.Damage;
+                monster.CurrentHealth -= actualDamage;
+                results.Add(new TowerAttackResult(tower.InstanceId, monster.InstanceId, actualDamage,
+                    monster.IsDead, targetTileIndex: monster.CurrentTileIndex));
+                if (!monster.IsDead) tower.TargetInstanceIds.Add(monster.InstanceId);
+            }
             state.Monsters.RemoveAll(monster => monster.IsDead);
         }
 

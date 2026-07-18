@@ -27,6 +27,7 @@ namespace GaeBullBing.Core.Towers
                 if (attackTileIndex < 0 || attackTileIndex >= state.Board.TileCount) continue;
                 var attackedTiles = new HashSet<int> { attackTileIndex };
                 if (target != null && upgrades.Contains("UPG_FIRE_T2_01")) target.BurnStacks++;
+                if (target != null && upgrades.Contains("UPG_FIRE_T2_04")) target.BurnStacks *= 2;
                 if (target != null && upgrades.Contains("UPG_ICE_T2_00") && target.FreezeImmuneLine < 0) target.FrozenMovesRemaining = 1;
                 if (target != null && upgrades.Contains("UPG_ELECTRIC_T3_02")) target.Shocked = true;
                 if (target != null && upgrades.Contains("UPG_PHYSICS_T3_02") && !target.KnockbackConsumed)
@@ -49,15 +50,25 @@ namespace GaeBullBing.Core.Towers
                     AddAreaTiles(state, attackTileIndex, 1, attackedTiles);
                     DamageArea(state, attackTileIndex, attack.Damage, attack.TowerInstanceId, extra);
                 }
+                if (upgrades.Contains("UPG_ELECTRIC_T2_02"))
+                {
+                    var chainDistance = upgrades.Contains("UPG_ELECTRIC_T2_03") ? 4 : 3;
+                    for (var distance = 1; distance <= chainDistance; distance++)
+                    {
+                        var chainedTile = (attackTileIndex + distance) % state.Board.TileCount;
+                        attackedTiles.Add(chainedTile);
+                        DamageTile(state, chainedTile, attack.Damage, attack.TowerInstanceId, extra);
+                    }
+                }
+                if (upgrades.Contains("UPG_ELECTRIC_T2_03"))
+                    ExpandTileSet(state, attackedTiles, 1);
                 if (upgrades.Contains("UPG_FIRE_T3_00"))
                     PlaceFields(state, attackedTiles, true, attack.TowerInstanceId, extra);
                 if (upgrades.Contains("UPG_ICE_T2_01"))
                     PlaceFields(state, attackedTiles, false, attack.TowerInstanceId, extra);
                 if (target == null || target.IsDead) continue;
-                if (upgrades.Contains("UPG_ELECTRIC_T2_00")) SpreadStatuses(state, target);
-                if (upgrades.Contains("UPG_ELECTRIC_T2_02"))
-                    for (var distance = 1; distance <= 3; distance++)
-                        DamageTile(state,(target.CurrentTileIndex+distance)%36,attack.Damage,attack.TowerInstanceId,extra);
+                if (upgrades.Contains("UPG_ELECTRIC_T2_00"))
+                    SpreadStatuses(state, target, upgrades.Contains("UPG_ELECTRIC_T2_03") ? 2 : 1);
                 if (upgrades.Contains("UPG_ICE_T3_01") && state.Board.Tiles[target.CurrentTileIndex].IceTurnsRemaining>0)
                 { state.Board.Tiles[target.CurrentTileIndex].IceTurnsRemaining=0; DamageTile(state,target.CurrentTileIndex,attack.Damage,attack.TowerInstanceId,extra); }
                 if (upgrades.Contains("UPG_ICE_T3_02") && target.FrozenMovesRemaining>0) ApplyDamage(target,attack.Damage*4,attack.TowerInstanceId,extra);
@@ -95,6 +106,13 @@ namespace GaeBullBing.Core.Towers
             var tileCount = state.Board.TileCount;
             for (var offset = -radius; offset <= radius; offset++)
                 tiles.Add((centerTileIndex + offset + tileCount) % tileCount);
+        }
+
+        private static void ExpandTileSet(GameState state, ISet<int> tiles, int radius)
+        {
+            var source = new List<int>(tiles);
+            foreach (var tileIndex in source)
+                AddAreaTiles(state, tileIndex, radius, tiles);
         }
 
         private void PlaceFields(
@@ -136,8 +154,8 @@ namespace GaeBullBing.Core.Towers
         { var actual = m.Shocked ? (int)Math.Ceiling(damage * 1.3f) : damage; m.CurrentHealth -= actual; results.Add(new TowerAttackResult(tower,m.InstanceId,actual,m.IsDead,targetTileIndex:m.CurrentTileIndex)); }
         private static void DamageArea(GameState s,int center,int damage,int tower,ICollection<TowerAttackResult> r)
         { foreach(var m in s.Monsters) if(Math.Min(Math.Abs(m.CurrentTileIndex-center),36-Math.Abs(m.CurrentTileIndex-center))<=1) ApplyDamage(m,damage,tower,r); }
-        private static void SpreadStatuses(GameState s, MonsterState source)
-        { foreach(var m in s.Monsters) if(m.InstanceId!=source.InstanceId && Math.Min(Math.Abs(m.CurrentTileIndex-source.CurrentTileIndex),36-Math.Abs(m.CurrentTileIndex-source.CurrentTileIndex))<=1) { m.BurnStacks=Math.Max(m.BurnStacks,source.BurnStacks); m.Shocked|=source.Shocked; if(source.FrozenMovesRemaining>0 && m.FreezeImmuneLine<0)m.FrozenMovesRemaining=source.FrozenMovesRemaining; } }
+        private static void SpreadStatuses(GameState s, MonsterState source, int radius)
+        { foreach(var m in s.Monsters) if(m.InstanceId!=source.InstanceId && Math.Min(Math.Abs(m.CurrentTileIndex-source.CurrentTileIndex),36-Math.Abs(m.CurrentTileIndex-source.CurrentTileIndex))<=radius) { m.BurnStacks=Math.Max(m.BurnStacks,source.BurnStacks); m.Shocked|=source.Shocked; if(source.FrozenMovesRemaining>0 && m.FreezeImmuneLine<0)m.FrozenMovesRemaining=source.FrozenMovesRemaining; } }
         private static MonsterState FindMonster(GameState s,int id)=>s.Monsters.Find(m=>m.InstanceId==id);
         private static Board.TileState FindTowerTile(GameState s,int id)=>s.Board.Tiles.Find(t=>t.HasTower&&t.Tower.InstanceId==id);
         private static void DamageTile(GameState s,int tile,int damage,int tower,ICollection<TowerAttackResult> r)
