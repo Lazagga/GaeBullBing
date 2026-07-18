@@ -78,6 +78,11 @@ namespace GaeBullBing.Core.Monsters
                     distance++;
                     var enteredTileIndex = (startTileIndex + distance) % BoardState.DefaultTileCount;
                     ApplyFireTile(state, monster, enteredTileIndex);
+                    if (TriggersPhysicsGuard(state, monster, enteredTileIndex))
+                    {
+                        plannedDistance = distance;
+                        break;
+                    }
                     if (HasIce(state, enteredTileIndex) && distance < plannedDistance)
                         plannedDistance = Math.Min(plannedDistance, distance + 1);
                 }
@@ -100,6 +105,20 @@ namespace GaeBullBing.Core.Monsters
         private static bool HasIce(GameState state, int tileIndex) =>
             tileIndex >= 0 && tileIndex < state.Board.Tiles.Count &&
             state.Board.Tiles[tileIndex].IceTurnsRemaining > 0;
+
+        private static bool TriggersPhysicsGuard(GameState state, MonsterState monster, int tileIndex)
+        {
+            if (monster.PhysicsGuardConsumed || tileIndex < 0 || tileIndex >= state.Board.Tiles.Count)
+                return false;
+
+            var tower = state.Board.Tiles[tileIndex].Tower;
+            if (tower == null || !tower.AppliedUpgradeIds.Contains("UPG_PHYSICS_T3_00"))
+                return false;
+
+            monster.PhysicsGuardConsumed = true;
+            monster.PhysicsGuardTriggeredThisTurn = true;
+            return true;
+        }
 
         private static void ApplyFireTile(GameState state, MonsterState monster, int tileIndex)
         {

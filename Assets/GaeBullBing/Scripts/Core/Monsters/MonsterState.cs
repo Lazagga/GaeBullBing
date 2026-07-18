@@ -16,7 +16,9 @@ namespace GaeBullBing.Core.Monsters
         public int FreezeImmuneLine { get; set; } = -1;
         public int StunnedMovesRemaining { get; set; }
         public bool KnockbackConsumed { get; set; }
+        public bool KnockbackImmunityPending { get; set; }
         public bool PhysicsGuardConsumed { get; set; }
+        public bool PhysicsGuardTriggeredThisTurn { get; set; }
 
         public bool IsDead => CurrentHealth <= 0;
     }

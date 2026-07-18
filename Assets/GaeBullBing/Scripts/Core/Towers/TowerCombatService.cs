@@ -24,18 +24,27 @@ namespace GaeBullBing.Core.Towers
 
     public readonly struct TowerAttackResult
     {
-        public TowerAttackResult(int towerInstanceId, int targetInstanceId, int damage, bool killed)
+        public TowerAttackResult(int towerInstanceId, int targetInstanceId, int damage, bool killed,
+            bool knockbackApplied = false, int knockbackFromTile = -1, int knockbackToTile = -1)
         {
             TowerInstanceId = towerInstanceId;
             TargetInstanceId = targetInstanceId;
             Damage = damage;
             Killed = killed;
+            KnockbackApplied = knockbackApplied;
+            KnockbackFromTile = knockbackFromTile;
+            KnockbackToTile = knockbackToTile;
         }
 
         public int TowerInstanceId { get; }
         public int TargetInstanceId { get; }
         public int Damage { get; }
         public bool Killed { get; }
+        public bool KnockbackApplied { get; }
+        public int KnockbackFromTile { get; }
+        public int KnockbackToTile { get; }
+        public TowerAttackResult WithKnockback(int fromTile, int toTile) =>
+            new(TowerInstanceId, TargetInstanceId, Damage, Killed, true, fromTile, toTile);
     }
 
     public sealed class TowerCombatService
@@ -93,7 +102,7 @@ namespace GaeBullBing.Core.Towers
         }
 
         private static void ResolvePhysicsGuard(GameState s,TileState tile,int damage,ICollection<TowerAttackResult> r)
-        { foreach(var m in new List<MonsterState>(s.Monsters)) if(m.CurrentTileIndex==tile.Index&&!m.PhysicsGuardConsumed){m.PhysicsGuardConsumed=true;m.StunnedMovesRemaining=1;Damage(m,damage,tile.Tower.InstanceId,r);} s.Monsters.RemoveAll(m=>m.IsDead); }
+        { foreach(var m in new List<MonsterState>(s.Monsters)) if(m.CurrentTileIndex==tile.Index&&m.PhysicsGuardTriggeredThisTurn){m.PhysicsGuardTriggeredThisTurn=false;Damage(m,damage,tile.Tower.InstanceId,r);} s.Monsters.RemoveAll(m=>m.IsDead); }
         private static void ResolveLineAttack(GameState s,TileState tile,int damage,ICollection<TowerAttackResult> r)
         { var line=MonsterService.GetLine(tile.Index);foreach(var m in new List<MonsterState>(s.Monsters))if(MonsterService.GetLine(m.CurrentTileIndex)==line)Damage(m,damage,tile.Tower.InstanceId,r);s.Monsters.RemoveAll(m=>m.IsDead); }
         private static readonly Random EffectRandom=new Random();

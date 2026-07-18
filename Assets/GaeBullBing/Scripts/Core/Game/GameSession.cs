@@ -137,6 +137,12 @@ namespace GaeBullBing.Core.Game
             if (State.IsGameOver)
                 return;
             State.CurrentPhase = TurnPhase.RoundEnd;
+            foreach (var monster in State.Monsters)
+            {
+                if (!monster.KnockbackImmunityPending) continue;
+                monster.KnockbackImmunityPending = false;
+                monster.KnockbackConsumed = true;
+            }
             State.Round++;
             State.CurrentPhase = TurnPhase.PlayerTurnStart;
         }
@@ -170,8 +176,25 @@ namespace GaeBullBing.Core.Game
             }
             var attacks = towerCombatService.ResolveByTower(State, stats);
             var effects = towerEffectService.ResolveAfterAttacks(State, attacks);
-            var combined = new System.Collections.Generic.List<TowerAttackResult>(attacks);
-            combined.AddRange(effects);
+            var combined = new System.Collections.Generic.List<TowerAttackResult>();
+            var consumedEffects = new System.Collections.Generic.HashSet<int>();
+            foreach (var attack in attacks)
+            {
+                var resolved = attack;
+                for (var index = 0; index < effects.Count; index++)
+                {
+                    var effect = effects[index];
+                    if (consumedEffects.Contains(index) || !effect.KnockbackApplied ||
+                        effect.TowerInstanceId != attack.TowerInstanceId ||
+                        effect.TargetInstanceId != attack.TargetInstanceId) continue;
+                    resolved = attack.WithKnockback(effect.KnockbackFromTile, effect.KnockbackToTile);
+                    consumedEffects.Add(index);
+                    break;
+                }
+                combined.Add(resolved);
+            }
+            for (var index = 0; index < effects.Count; index++)
+                if (!consumedEffects.Contains(index)) combined.Add(effects[index]);
             return combined;
         }
 

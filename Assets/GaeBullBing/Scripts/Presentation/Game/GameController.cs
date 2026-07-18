@@ -45,6 +45,7 @@ namespace GaeBullBing.Presentation.Game
         private MonsterDatabase monsterDatabase;
         private DifficultyService difficultyService;
         private Dice3DPresenter dice3DPresenter;
+        private StonePresenter stonePresenter;
         private string nextMonsterOverrideId;
         private BoardTileSelectionView tileSelectionView;
         private bool pendingDiceTuning;
@@ -54,6 +55,8 @@ namespace GaeBullBing.Presentation.Game
 
         public GameState State { get; private set; }
         public GameSession Session { get; private set; }
+        public int RemainingKills => difficultyService == null ? 0 : difficultyService.GetRemainingKills(State.Difficulty);
+        public bool IsFinalPattern => difficultyService != null && difficultyService.IsFinalPattern(State.Difficulty);
 
         public bool SetNextDiceResults(int first, int second, out string message)
         {
@@ -209,6 +212,7 @@ namespace GaeBullBing.Presentation.Game
                 if (result.Killed) killedCount++;
             }
             difficultyService.AddKills(State.Difficulty, killedCount);
+            diceHud.RefreshDifficulty();
             monsterPresenter.RefreshLayout();
         }
 
@@ -261,6 +265,10 @@ namespace GaeBullBing.Presentation.Game
             if (dice3DPresenter == null)
                 dice3DPresenter = gameObject.AddComponent<Dice3DPresenter>();
             dice3DPresenter.Initialize(boardView);
+            stonePresenter = GetComponent<StonePresenter>();
+            if (stonePresenter == null)
+                stonePresenter = gameObject.AddComponent<StonePresenter>();
+            stonePresenter.Initialize(boardView);
             tileSelectionView = boardView.GetComponent<BoardTileSelectionView>();
             if (tileSelectionView == null) tileSelectionView = boardView.gameObject.AddComponent<BoardTileSelectionView>();
             tileSelectionView.Initialize(boardView);
@@ -355,6 +363,7 @@ namespace GaeBullBing.Presentation.Game
             playerView.TileMoveStarted += monsterPresenter.SetPlayerTile;
             playerView.TileEntered += monsterPresenter.SetPlayerTile;
             monsterPresenter.SetPlayerTile(State.Player.CurrentTileIndex);
+            stonePresenter.Refresh(State);
             diceHud.Bind(this);
         }
 
@@ -778,10 +787,12 @@ namespace GaeBullBing.Presentation.Game
             }
 
             var attackResults = Session.ResolveTowerCombat(towerDefinitions, towerUpgradeDefinitions);
+            stonePresenter.Refresh(State);
             boardView.RefreshTileEffects(State.Board);
             foreach (var attackResult in attackResults)
                 yield return monsterPresenter.ApplyAttack(attackResult);
             var statusResults = Session.ResolveMonsterTurnEndEffects();
+            stonePresenter.Refresh(State);
             boardView.RefreshTileEffects(State.Board);
             foreach (var statusResult in statusResults)
                 yield return monsterPresenter.ApplyAttack(statusResult);
@@ -791,6 +802,7 @@ namespace GaeBullBing.Presentation.Game
             foreach (var statusResult in statusResults)
                 if (statusResult.Killed) killedCount++;
             difficultyService.AddKills(State.Difficulty, killedCount);
+            diceHud.RefreshDifficulty();
 
             Session.CompleteRound();
 

@@ -9,6 +9,7 @@ namespace GaeBullBing.Presentation.UI
     {
         [SerializeField] private Button rollButton;
         [SerializeField] private DeveloperConsoleView developerConsole;
+        [SerializeField] private Text remainingKillsText;
 
         private GameController controller;
 
@@ -18,6 +19,7 @@ namespace GaeBullBing.Presentation.UI
             rollButton.onClick.RemoveListener(OnRollClicked);
             rollButton.onClick.AddListener(OnRollClicked);
             BeginPlayerTurn();
+            RefreshDifficulty();
         }
 
         private void Update()
@@ -56,6 +58,14 @@ namespace GaeBullBing.Presentation.UI
         }
 
         public void SetResults(int first, int second) { }
+
+        public void RefreshDifficulty()
+        {
+            if (remainingKillsText == null || controller == null) return;
+            remainingKillsText.text = controller.IsFinalPattern
+                ? "최종 패턴"
+                : $"다음 패턴까지 {controller.RemainingKills}킬";
+        }
 
         private void OnRollClicked() => controller.RollDiceAndMovePlayer();
     }

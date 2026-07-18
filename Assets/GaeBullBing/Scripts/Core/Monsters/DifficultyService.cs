@@ -83,6 +83,17 @@ namespace GaeBullBing.Core.Monsters
         public float GetHealthMultiplier(DifficultyState state) =>
             patterns[GetPatternIndex(state.KillCount)].HealthMultiplier;
 
+        public bool IsFinalPattern(DifficultyState state) =>
+            GetPatternIndex(state.KillCount) >= patterns.Length - 1;
+
+        public int GetRemainingKills(DifficultyState state)
+        {
+            var current = GetPatternIndex(state.KillCount);
+            return current >= patterns.Length - 1
+                ? 0
+                : Math.Max(0, patterns[current + 1].RequiredKills - state.KillCount);
+        }
+
         private int GetPatternIndex(int kills)
         {
             var result = 0;

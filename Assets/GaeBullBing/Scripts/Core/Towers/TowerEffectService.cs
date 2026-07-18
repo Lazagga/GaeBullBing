@@ -21,19 +21,35 @@ namespace GaeBullBing.Core.Towers
                 var towerTile = FindTowerTile(state, attack.TowerInstanceId); if (towerTile == null) continue;
                 var target = FindMonster(state, attack.TargetInstanceId); if (target == null) continue;
                 var upgrades = towerTile.Tower.AppliedUpgradeIds;
+                var attackTileIndex = target.CurrentTileIndex;
+                var attackedTiles = new HashSet<int> { attackTileIndex };
                 if (upgrades.Contains("UPG_FIRE_T2_01")) target.BurnStacks++;
                 if (upgrades.Contains("UPG_ICE_T2_00") && target.FreezeImmuneLine < 0) target.FrozenMovesRemaining = 1;
                 if (upgrades.Contains("UPG_ELECTRIC_T3_02")) target.Shocked = true;
                 if (upgrades.Contains("UPG_PHYSICS_T3_02") && !target.KnockbackConsumed)
-                { target.KnockbackConsumed = true; target.CurrentTileIndex = (target.CurrentTileIndex + 35) % 36; target.DistanceTravelled = Math.Max(0, target.DistanceTravelled - 1); }
+                {
+                    var fromTile = target.CurrentTileIndex;
+                    var toTile = fromTile == 0 ? 0 : (fromTile + 35) % 36;
+                    target.KnockbackImmunityPending = true;
+                    target.CurrentTileIndex = toTile;
+                    if (toTile != fromTile) target.DistanceTravelled = Math.Max(0, target.DistanceTravelled - 1);
+                    extra.Add(new TowerAttackResult(attack.TowerInstanceId, target.InstanceId, 0, false,
+                        true, fromTile, toTile));
+                }
                 if (upgrades.Contains("UPG_FIRE_T2_00"))
-                    DamageArea(state, target.CurrentTileIndex, attack.Damage, attack.TowerInstanceId, extra);
+                {
+                    AddAreaTiles(state, attackTileIndex, 1, attackedTiles);
+                    DamageArea(state, attackTileIndex, attack.Damage, attack.TowerInstanceId, extra);
+                }
                 if (upgrades.Contains("UPG_FIRE_T3_01") && target.BurnStacks >= 10)
-                    DamageArea(state, target.CurrentTileIndex, attack.Damage, attack.TowerInstanceId, extra);
+                {
+                    AddAreaTiles(state, attackTileIndex, 1, attackedTiles);
+                    DamageArea(state, attackTileIndex, attack.Damage, attack.TowerInstanceId, extra);
+                }
                 if (upgrades.Contains("UPG_FIRE_T3_00"))
-                    extra.AddRange(PlaceFireField(state, target.CurrentTileIndex, attack.TowerInstanceId));
+                    PlaceFields(state, attackedTiles, true, attack.TowerInstanceId, extra);
                 if (upgrades.Contains("UPG_ICE_T2_01"))
-                    extra.AddRange(PlaceIceField(state, target.CurrentTileIndex, attack.TowerInstanceId));
+                    PlaceFields(state, attackedTiles, false, attack.TowerInstanceId, extra);
                 if (target.IsDead) continue;
                 if (upgrades.Contains("UPG_ELECTRIC_T2_00")) SpreadStatuses(state, target);
                 if (upgrades.Contains("UPG_ELECTRIC_T2_02"))
@@ -67,6 +83,34 @@ namespace GaeBullBing.Core.Towers
         }
 
         private static int BurnDamage(MonsterState m) => Math.Max(1, (int)Math.Ceiling(m.MaxHealth * .005f * m.BurnStacks));
+        private static void AddAreaTiles(
+            GameState state,
+            int centerTileIndex,
+            int radius,
+            ISet<int> tiles)
+        {
+            var tileCount = state.Board.TileCount;
+            for (var offset = -radius; offset <= radius; offset++)
+                tiles.Add((centerTileIndex + offset + tileCount) % tileCount);
+        }
+
+        private void PlaceFields(
+            GameState state,
+            IEnumerable<int> tileIndices,
+            bool placeFire,
+            int sourceTowerInstanceId,
+            ICollection<TowerAttackResult> results)
+        {
+            foreach (var tileIndex in tileIndices)
+            {
+                var fieldResults = placeFire
+                    ? PlaceFireField(state, tileIndex, sourceTowerInstanceId)
+                    : PlaceIceField(state, tileIndex, sourceTowerInstanceId);
+                foreach (var result in fieldResults)
+                    results.Add(result);
+            }
+        }
+
         private static IReadOnlyList<TowerAttackResult> PlaceTileField(GameState state, int tileIndex, bool placeFire, int sourceTowerInstanceId)
         {
             var results = new List<TowerAttackResult>();

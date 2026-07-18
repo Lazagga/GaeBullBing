@@ -84,8 +84,13 @@ namespace GaeBullBing.Presentation.Monsters
             if (!views.TryGetValue(result.TargetInstanceId, out var view))
                 yield break;
 
-            yield return view.PlayHit();
             if (states.TryGetValue(result.TargetInstanceId, out var state)) view.UpdateHealth(state.CurrentHealth, state.MaxHealth);
+            Coroutine hitRoutine = null;
+            if (result.Damage > 0) hitRoutine = StartCoroutine(view.PlayHit());
+            if (result.KnockbackApplied && result.KnockbackFromTile != result.KnockbackToTile)
+                yield return view.PlayKnockback(result.KnockbackFromTile, result.KnockbackToTile);
+            else if (hitRoutine != null)
+                yield return hitRoutine;
             if (result.Killed)
             {
                 var tile = view.CurrentTileIndex;

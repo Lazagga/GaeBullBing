@@ -123,6 +123,24 @@ namespace GaeBullBing.Presentation.Monsters
             transform.position = boardView.GetWorldPosition(CurrentTileIndex) + positionOffset;
         }
 
+        public IEnumerator PlayKnockback(int fromTileIndex, int toTileIndex)
+        {
+            if (fromTileIndex == toTileIndex) yield break;
+            isMoving = true;
+            var from = boardView.GetWorldPosition(fromTileIndex);
+            var to = boardView.GetWorldPosition(toTileIndex);
+            CurrentTileIndex = toTileIndex;
+            TileChanged?.Invoke(fromTileIndex, toTileIndex);
+            for (var elapsed = 0f; elapsed < stepDuration; elapsed += Time.deltaTime)
+            {
+                var progress = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(elapsed / stepDuration));
+                transform.position = Vector3.Lerp(from, to, progress) + positionOffset;
+                yield return null;
+            }
+            transform.position = to + positionOffset;
+            isMoving = false;
+        }
+
         public IEnumerator PlayHit()
         {
             var originalColor = spriteRenderer.color;
