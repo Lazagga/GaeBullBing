@@ -48,8 +48,7 @@ namespace GaeBullBing.Presentation.UI
 public void SetRolling(bool rolling)
         {
             if (rolling) diceSystemView?.SetVisible(false);
-
-            rollButton.gameObject.SetActive(true);
+            rollButton.gameObject.SetActive(!rolling);
             rollButton.interactable = !rolling && controller != null && controller.Session.CanRollDice;
         }
 
@@ -122,10 +121,13 @@ public void SetDiceSelectionOpen(bool open)
                     playerHealthHearts[index].gameObject.SetActive(index < remainingHealth);
         }
 
-        private void OnRollClicked()
+private void OnRollClicked()
         {
-            if (controller != null && controller.AcceptsGameplayInput && controller.Session.CanRollDice)
-                controller.RollDiceAndMovePlayer();
+            if (controller == null || !controller.AcceptsGameplayInput || !controller.Session.CanRollDice)
+                return;
+
+            SetRolling(true);
+            controller.RollDiceAndMovePlayer();
         }
     }
 }

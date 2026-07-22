@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dc3be736510e263458c4b09b309a1eb8, type: 3}
+  m_Name: DICE_VIOLET
+  m_EditorClassIdentifier: GaeBullBing.Core::GaeBullBing.Core.Data.DiceDefinition
+  id: DICE_VIOLET
+  displayName: "\uBC88\uAC1C \uC8FC\uC0AC\uC704"
+  grade: 2
+  faces: 020000000200000003000000030000000600000006000000
+  color: {r: 0.4627451, g: 0.21176471, b: 0.65882355, a: 1}
