@@ -21,6 +21,8 @@ namespace GaeBullBing.Core.Towers
         public int AttackCooldownRounds { get; set; }
         public int BonusAttackCount { get; set; }
         public int BonusAttackTurnsRemaining { get; set; }
+        public int PendingBonusAttackCount { get; set; }
+        public int PendingBonusAttackTurns { get; set; }
         public bool StoneActive { get; set; }
         public int StoneTileIndex { get; set; }
         public float StoneDamageMultiplier { get; set; } = 1f;

@@ -637,11 +637,16 @@ public bool ApplyConsoleUpgradeChoice(int choiceIndex, out string message)
             if (definition == null) return featherDescription + $"[타워]\n정의 없음: {tile.Tower.DefinitionId}";
             var stats = CalculateDisplayStats(definition, tile);
             var damageFormula = BuildDamageFormula(definition, tile);
+            var bonusAttacks = Mathf.Max(
+                tile.Tower.BonusAttackCount, tile.Tower.PendingBonusAttackCount);
+            var attackFormula = bonusAttacks > 0
+                ? $"{stats.attacks} + {bonusAttacks}"
+                : stats.attacks.ToString();
             var builder = new StringBuilder();
             builder.AppendLine($"[타워] {definition.DisplayName}  T{tile.Tower.UpgradeTier}");
             builder.AppendLine($"속성: {GetElementName(definition.Element)}");
             builder.AppendLine($"공격력 {stats.damage}  |  사거리 ±{stats.range}타일");
-            builder.AppendLine($"대상 {stats.targets}  |  공격 횟수 {stats.attacks}");
+            builder.AppendLine($"대상 {stats.targets}  |  공격 횟수 {attackFormula}");
             builder.AppendLine($"\uACF5\uACA9\uB825 \uACC4\uC0B0: {damageFormula}");
             builder.AppendLine();
             builder.AppendLine("[적용된 업그레이드]");
@@ -847,10 +852,12 @@ public bool ApplyConsoleUpgradeChoice(int choiceIndex, out string message)
         private IEnumerator PrepareTileSelectionRoutine()
         {
             yield return cameraController.ReturnToOverview();
+            var sourceTileIndex = State.Player.CurrentTileIndex;
             tileSelectionView.BeginSelection(
                 SelectTeleportDestination,
                 tileIndex => ShowTileInformation(tileIndex, false),
-                HideTileInformation);
+                HideTileInformation,
+                tileIndex => tileIndex != sourceTileIndex);
         }
 
         public void SelectCornerElement(TowerElement element)
@@ -863,7 +870,8 @@ public bool ApplyConsoleUpgradeChoice(int choiceIndex, out string message)
 
         public void SelectTeleportDestination(int tileIndex)
         {
-            if (State.CurrentPhase != TurnPhase.CornerSelection || tileIndex < 0 || tileIndex >= State.Board.TileCount) return;
+            if (State.CurrentPhase != TurnPhase.CornerSelection || tileIndex < 0 ||
+                tileIndex >= State.Board.TileCount || tileIndex == State.Player.CurrentTileIndex) return;
             HideTileInformation();
             StartCoroutine(MoveToSelectedTileRoutine(tileIndex));
         }

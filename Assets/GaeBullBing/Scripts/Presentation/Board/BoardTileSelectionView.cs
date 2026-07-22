@@ -17,6 +17,7 @@ namespace GaeBullBing.Presentation.Board
         private Action selectionHoverExited;
         private Action<int> inspected;
         private Action inspectionClosed;
+        private Func<int, bool> selectable;
         private Func<bool> inputAllowed;
         private int hoveredIndex = -1;
         private Color hoveredOriginalColor;
@@ -30,12 +31,14 @@ namespace GaeBullBing.Presentation.Board
         public void BeginSelection(
             Action<int> onSelected,
             Action<int> onHovered = null,
-            Action onHoverExited = null)
+            Action onHoverExited = null,
+            Func<int, bool> canSelect = null)
         {
             EndSelection();
             selected = onSelected;
             selectionHovered = onHovered;
             selectionHoverExited = onHoverExited;
+            selectable = canSelect;
         }
 
         public void EnableInspection(Action<int> onInspected, Action onClosed)
@@ -83,6 +86,7 @@ namespace GaeBullBing.Presentation.Board
             SetHovered(-1);
             selected = null;
             selectionHovered = null;
+            selectable = null;
             selectionHoverExited = null;
         }
 
@@ -91,6 +95,7 @@ namespace GaeBullBing.Presentation.Board
             var nearest = -1; var nearestDistance = selectionRadius * selectionRadius;
             for (var index = 0; index < GaeBullBing.Core.Board.BoardState.DefaultTileCount; index++)
             {
+                if (selected != null && selectable != null && !selectable(index)) continue;
                 var sqrDistance = (boardView.GetWorldPosition(index) - world).sqrMagnitude;
                 if (sqrDistance <= nearestDistance) { nearestDistance = sqrDistance; nearest = index; }
             }
@@ -119,6 +124,7 @@ namespace GaeBullBing.Presentation.Board
 
         private void Select(int index)
         {
+            if (selectable != null && !selectable(index)) return;
             var callback = selected;
             EndSelection();
             callback?.Invoke(index);

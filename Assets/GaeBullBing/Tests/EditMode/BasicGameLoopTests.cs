@@ -1084,6 +1084,41 @@ Assert.That(oppositeTile.CurrentHealth, Is.EqualTo(100f));
         }
 
         [Test]
+        public void FireTile_StandbyTicksExistingBurnBeforeApplyingTileBurn()
+        {
+            var state = new GameState();
+            new BoardService().Initialize(state.Board);
+            state.Board.Tiles[5].FireTurnsRemaining = TileState.OneTurnEffectDuration;
+            var monster = CreateMonster(1, 5, 100, 5);
+            monster.MaxHealth = 100;
+            monster.BurnStacks = 1;
+            state.Monsters.Add(monster);
+
+            new GaeBullBing.Core.Towers.TowerEffectService().ResolveMonsterStandby(state);
+
+            Assert.That(monster.BurnStacks, Is.EqualTo(2));
+            Assert.That(monster.CurrentHealth, Is.EqualTo(98.5f).Within(.0001f));
+        }
+
+        [Test]
+        public void FireTile_MovementAppliesBurnOncePerEnteredFireTile()
+        {
+            var state = new GameState();
+            new BoardService().Initialize(state.Board);
+            state.Board.Tiles[1].FireTurnsRemaining = TileState.OneTurnEffectDuration;
+            state.Board.Tiles[2].FireTurnsRemaining = TileState.OneTurnEffectDuration;
+            var monster = CreateMonster(1, 0, 100, 0);
+            monster.MaxHealth = 100;
+            monster.MoveDistance = 2;
+            state.Monsters.Add(monster);
+
+            new GaeBullBing.Core.Monsters.MonsterService().MoveAll(state);
+
+            Assert.That(monster.BurnStacks, Is.EqualTo(2));
+            Assert.That(monster.CurrentHealth, Is.EqualTo(98.5f).Within(.0001f));
+        }
+
+        [Test]
         public void Boss_ReceivesFreezeDebuffLikeOtherMonsters()
         {
             var state = new GameState();
@@ -1248,6 +1283,41 @@ Assert.That(oppositeTile.CurrentHealth, Is.EqualTo(100f));
         }
 
         [Test]
+        public void BossDefeat_WaitsForEveryRemainingMonsterBeforeVictory()
+        {
+            var state = new GameState();
+            var session = CreateSession(state);
+            session.StartNewGame();
+            var bossDefinition = CreateMonsterDefinition("BOSS_001", MonsterTier.Boss, 10, 4, 0f);
+            var boss = session.SpawnMonster(bossDefinition);
+            boss.CurrentTileIndex = 5;
+            var remaining = CreateMonster(2, 6, 100, 6);
+            state.Monsters.Add(remaining);
+            state.Board.Tiles[5].Tower = new GaeBullBing.Core.Towers.TowerState
+            {
+                InstanceId = 1,
+                DefinitionId = "TOW_01"
+            };
+            var tower = CreateTowerDefinition("TOW_01", 10, 2);
+
+            session.ResolveTowerCombat(new[] { tower },
+                System.Array.Empty<GaeBullBing.Core.Data.TowerUpgradeDefinition>());
+
+            Assert.That(state.BossDefeated, Is.True);
+            Assert.That(state.CurrentPhase, Is.EqualTo(TurnPhase.TowerCombat));
+            Assert.That(state.Monsters.Count, Is.EqualTo(1));
+            Assert.That(state.Monsters[0], Is.SameAs(remaining));
+
+            remaining.CurrentHealth = 10;
+            session.ResolveTowerCombat(new[] { tower },
+                System.Array.Empty<GaeBullBing.Core.Data.TowerUpgradeDefinition>());
+
+            Assert.That(state.CurrentPhase, Is.EqualTo(TurnPhase.Victory));
+            Object.DestroyImmediate(tower);
+            Object.DestroyImmediate(bossDefinition);
+        }
+
+        [Test]
         public void TowerCombat_PrioritizesBossAfterExistingTargetPriority()
         {
             var state = CreateCombatState();
@@ -1260,6 +1330,48 @@ Assert.That(oppositeTile.CurrentHealth, Is.EqualTo(100f));
             var results = ResolveCombat(state, 10, 3, 1);
 
             Assert.That(results[0].TargetInstanceId, Is.EqualTo(boss.InstanceId));
+        }
+
+        [Test]
+        public void ElectricTowerBuff_IncreasesHitTileTowerAttacksStartingNextCombat()
+        {
+            var state = new GameState();
+            new BoardService().Initialize(state.Board);
+            var source = new GaeBullBing.Core.Towers.TowerState
+            {
+                InstanceId = 1,
+                DefinitionId = "TOW_04"
+            };
+            source.AppliedEffectIds.Add("tower_buff");
+            source.EffectValues["tower_buff"] = 1f;
+            var target = new GaeBullBing.Core.Towers.TowerState
+            {
+                InstanceId = 2,
+                DefinitionId = "TOW_01"
+            };
+            state.Board.Tiles[10].Tower = source;
+            state.Board.Tiles[9].Tower = target;
+            state.Monsters.Add(CreateMonster(1, 9, 10, 9));
+            state.Monsters.Add(CreateMonster(2, 8, 100, 8));
+            var stats = new System.Collections.Generic.Dictionary<int, GaeBullBing.Core.Towers.TowerCombatStats>
+            {
+                [source.InstanceId] = new GaeBullBing.Core.Towers.TowerCombatStats(10, 1, 1),
+                [target.InstanceId] = new GaeBullBing.Core.Towers.TowerCombatStats(10, 1, 1)
+            };
+            var service = new GaeBullBing.Core.Towers.TowerCombatService();
+
+            var firstCombat = service.ResolveByTower(state, stats);
+
+            Assert.That(target.BonusAttackCount, Is.EqualTo(0));
+            Assert.That(target.PendingBonusAttackCount, Is.EqualTo(1));
+            Assert.That(System.Linq.Enumerable.Count(firstCombat,
+                result => result.TowerInstanceId == target.InstanceId), Is.EqualTo(1));
+
+            var secondCombat = service.ResolveByTower(state, stats);
+
+            Assert.That(target.BonusAttackCount, Is.EqualTo(1));
+            Assert.That(System.Linq.Enumerable.Count(secondCombat,
+                result => result.TowerInstanceId == target.InstanceId), Is.EqualTo(2));
         }
 
         [Test]

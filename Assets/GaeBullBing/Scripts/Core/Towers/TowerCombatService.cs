@@ -95,6 +95,7 @@ namespace GaeBullBing.Core.Towers
             IReadOnlyDictionary<int, TowerCombatStats> statsByTowerInstanceId)
         {
             var results = new List<TowerAttackResult>();
+            ActivatePendingAttackBonuses(state);
             for (var tileIndex = state.Board.Tiles.Count - 1; tileIndex >= 0; tileIndex--)
             {
                 var tile = state.Board.Tiles[tileIndex];
@@ -124,7 +125,11 @@ namespace GaeBullBing.Core.Towers
                     var resultCountBeforeAttack = results.Count;
                     for (var attack = 0; attack < Math.Max(1, stats.AttackCount + tower.BonusAttackCount); attack++)
                         ResolveLineAttack(state, tile, stats.Damage, results);
-                    if (results.Count > resultCountBeforeAttack) FinishTowerAttack(tower);
+                    if (results.Count > resultCountBeforeAttack)
+                    {
+                        BuffAttackedTileTowers(state, results, resultCountBeforeAttack, tower);
+                        FinishTowerAttack(tower);
+                    }
                     continue;
                 }
                 if (HasEffect(tower, TowerEffectCatalog.ChainLightning, "UPG_ELECTRIC_T3_01"))
@@ -132,7 +137,11 @@ namespace GaeBullBing.Core.Towers
                     var resultCountBeforeAttack = results.Count;
                     ResolveRandomElectric(state, tile, stats.Damage,
                         Math.Max(1, (int)Math.Round(tower.GetEffectValue(TowerEffectCatalog.ChainLightning, 3f))), results);
-                    if (results.Count > resultCountBeforeAttack) FinishTowerAttack(tower);
+                    if (results.Count > resultCountBeforeAttack)
+                    {
+                        BuffAttackedTileTowers(state, results, resultCountBeforeAttack, tower);
+                        FinishTowerAttack(tower);
+                    }
                     continue;
                 }
                 var resultCountBeforeNormalAttack = results.Count;
@@ -149,8 +158,7 @@ namespace GaeBullBing.Core.Towers
                 }
                 if (results.Count > resultCountBeforeNormalAttack)
                 {
-                    if (HasEffect(tower, TowerEffectCatalog.TowerBuff, "UPG_ELECTRIC_T2_01"))
-                        BuffAttackedTileTower(state, results, tower.InstanceId);
+                    BuffAttackedTileTowers(state, results, resultCountBeforeNormalAttack, tower);
                     FinishTowerAttack(tower);
                 }
             }
@@ -185,8 +193,43 @@ namespace GaeBullBing.Core.Towers
             }
             s.Monsters.RemoveAll(m=>m.IsDead);
         }
-        private static void BuffAttackedTileTower(GameState s,IEnumerable<TowerAttackResult> results,int source)
-        { foreach(var a in results)if(a.TowerInstanceId==source){var m=s.Monsters.Find(x=>x.InstanceId==a.TargetInstanceId);if(m!=null){var t=s.Board.Tiles[m.CurrentTileIndex];if(t.HasTower){var sourceTile=s.Board.Tiles.Find(x=>x.HasTower&&x.Tower.InstanceId==source);var value=sourceTile?.Tower.GetEffectValue(TowerEffectCatalog.TowerBuff,1f)??1f;t.Tower.BonusAttackCount=Math.Max(1,(int)Math.Round(value));t.Tower.BonusAttackTurnsRemaining=2;}}} }
+        private static void ActivatePendingAttackBonuses(GameState state)
+        {
+            foreach (var tile in state.Board.Tiles)
+            {
+                if (!tile.HasTower || tile.Tower.PendingBonusAttackCount <= 0) continue;
+                tile.Tower.BonusAttackCount = Math.Max(
+                    tile.Tower.BonusAttackCount, tile.Tower.PendingBonusAttackCount);
+                tile.Tower.BonusAttackTurnsRemaining = Math.Max(
+                    tile.Tower.BonusAttackTurnsRemaining, tile.Tower.PendingBonusAttackTurns);
+                tile.Tower.PendingBonusAttackCount = 0;
+                tile.Tower.PendingBonusAttackTurns = 0;
+            }
+        }
+
+        private static void BuffAttackedTileTowers(
+            GameState state,
+            IReadOnlyList<TowerAttackResult> results,
+            int firstResultIndex,
+            TowerState source)
+        {
+            if (!HasEffect(source, TowerEffectCatalog.TowerBuff, "UPG_ELECTRIC_T2_01")) return;
+            var bonus = Math.Max(1, (int)Math.Round(
+                source.GetEffectValue(TowerEffectCatalog.TowerBuff, 1f)));
+            var affectedTiles = new HashSet<int>();
+            for (var index = firstResultIndex; index < results.Count; index++)
+            {
+                var tileIndex = results[index].TargetTileIndex;
+                if (tileIndex < 0 || tileIndex >= state.Board.TileCount ||
+                    !affectedTiles.Add(tileIndex)) continue;
+                var targetTile = state.Board.Tiles[tileIndex];
+                if (!targetTile.HasTower) continue;
+                targetTile.Tower.PendingBonusAttackCount = Math.Max(
+                    targetTile.Tower.PendingBonusAttackCount, bonus);
+                targetTile.Tower.PendingBonusAttackTurns = Math.Max(
+                    targetTile.Tower.PendingBonusAttackTurns, 2);
+            }
+        }
         private static void Damage(GameState state,MonsterState monster,float damage,int tower,ICollection<TowerAttackResult> results,
             TowerAttackVisualKind visualKind = TowerAttackVisualKind.None)
         {var actual=monster.ReceiveDamage(damage,state.Difficulty);results.Add(new TowerAttackResult(tower,monster.InstanceId,actual,monster.IsDead,targetTileIndex:monster.CurrentTileIndex,visualKind:visualKind));}

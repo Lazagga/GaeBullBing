@@ -242,15 +242,18 @@ namespace GaeBullBing.Core.Game
         private void ResolveBossVictory(
             System.Collections.Generic.IEnumerable<TowerAttackResult> results)
         {
-            if (State.BossInstanceId == 0 || State.BossDefeated) return;
-            foreach (var result in results)
-            {
-                if (!result.Killed || result.TargetInstanceId != State.BossInstanceId) continue;
-                State.BossDefeated = true;
+            if (State.BossInstanceId == 0) return;
+            if (!State.BossDefeated)
+                foreach (var result in results)
+                {
+                    if (!result.Killed || result.TargetInstanceId != State.BossInstanceId) continue;
+                    State.BossDefeated = true;
+                    ClearBossFeathers();
+                    break;
+                }
+
+            if (State.BossDefeated && State.Monsters.Count == 0)
                 State.CurrentPhase = TurnPhase.Victory;
-                ClearBossFeathers();
-                return;
-            }
         }
 
         public MonsterState SpawnMonster(MonsterDefinition definition, float healthMultiplier = 1f)
