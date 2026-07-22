@@ -82,6 +82,47 @@ namespace GaeBullBing.Tests.EditMode
             Assert.That(result, Is.EqualTo(3));
         }
 
+[Test]
+        public void DiceInventory_StartsOwnedButUnequippedAndChangingSlotDoesNotDeleteDice()
+        {
+            var state = new GameState();
+            var session = CreateSession(state);
+            session.StartNewGame();
+
+            Assert.That(state.Dice[0], Is.Null);
+            Assert.That(state.Dice[1], Is.Null);
+            Assert.That(state.DiceInventory.Dice[0].Id, Is.EqualTo("DICE_WHITE"));
+            Assert.That(state.DiceInventory.Dice[1].Id, Is.EqualTo("DICE_BLACK"));
+            Assert.That(session.CanRollDice, Is.False);
+
+            var fire = GaeBullBing.Core.Dice.DiceCatalog.GetReward(0);
+            Assert.That(session.ReplaceReserveDice(1, fire), Is.True);
+            Assert.That(session.QueueDiceEquip(0, 1), Is.True);
+            Assert.That(state.Dice[0].Id, Is.EqualTo("DICE_FIRE"));
+
+            Assert.That(session.QueueDiceEquip(0, 0), Is.True);
+            session.CompleteRound();
+
+            Assert.That(state.Dice[0].Id, Is.EqualTo("DICE_WHITE"));
+            Assert.That(state.Dice[1], Is.Null);
+            Assert.That(state.DiceInventory.Dice[0].Id, Is.EqualTo("DICE_WHITE"));
+            Assert.That(state.DiceInventory.Dice[1].Id, Is.EqualTo("DICE_FIRE"));
+        }
+
+
+        [Test]
+        public void DiceInventory_HoldsFourDiceAndRejectsAFifth()
+        {
+            var state = new GameState();
+            var session = CreateSession(state);
+            session.StartNewGame();
+
+            Assert.That(session.StoreDiceReward(DiceCatalog.GetReward(0)), Is.True);
+            Assert.That(session.StoreDiceReward(DiceCatalog.GetReward(1)), Is.True);
+            Assert.That(state.DiceInventory.Dice, Has.Count.EqualTo(4));
+            Assert.That(session.StoreDiceReward(DiceCatalog.GetReward(2)), Is.False);
+        }
+
         [Test]
         public void GameSession_RollsTwoDiceAndMovesPlayer()
         {
@@ -95,6 +136,8 @@ namespace GaeBullBing.Tests.EditMode
                 new GaeBullBing.Core.Towers.TowerService(),
                 new GaeBullBing.Core.Towers.TowerCombatService());
             session.StartNewGame();
+            session.QueueDiceEquip(0, 0);
+            session.QueueDiceEquip(1, 1);
 
             var distance = session.RollDiceAndMovePlayer();
 
@@ -110,6 +153,8 @@ namespace GaeBullBing.Tests.EditMode
             var state = new GameState();
             var session = CreateSession(state);
             session.StartNewGame();
+            session.QueueDiceEquip(0, 0);
+            session.QueueDiceEquip(1, 1);
             state.Player.CurrentTileIndex = 35;
             session.SetNextDiceResults(1, 1);
 

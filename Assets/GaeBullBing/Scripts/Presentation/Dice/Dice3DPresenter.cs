@@ -40,6 +40,9 @@ namespace GaeBullBing.Presentation.Dice
 
         public IEnumerator Roll(IReadOnlyList<DiceState> diceStates, int firstResult, int secondResult)
         {
+            ApplyAppearance(first, firstDiceMaterial, diceStates[0]);
+            ApplyAppearance(second, secondDiceMaterial, diceStates[1]);
+
             var firstTarget = stageCenter + new Vector3(-0.65f, diceSize * 0.5f + 0.01f, 0f);
             var secondTarget = stageCenter + new Vector3(0.65f, diceSize * 0.5f + 0.01f, 0f);
             first.SetFaceValues(BuildPhysicalFaces(diceStates[0]));
@@ -260,5 +263,14 @@ namespace GaeBullBing.Presentation.Dice
                 for (var i = 0; i < Faces.Length; i++) Faces[i].SetValue(values[i]);
             }
         }
-    }
+
+
+private void ApplyAppearance(DieView die, Material bodyMaterial, DiceState state)
+        {
+            bodyMaterial.color = new Color(state.Red, state.Green, state.Blue, 1f);
+            var pipMaterial = state.UsesBlackPips ? blackPipMaterial : whitePipMaterial;
+            foreach (var face in die.Faces)
+                face.SetMaterial(pipMaterial);
+        }
+}
 }

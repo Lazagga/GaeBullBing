@@ -43,6 +43,13 @@ namespace GaeBullBing.Presentation.Dice
             }
         }
 
+public void SetMaterial(Material material)
+        {
+            foreach (var pip in pips)
+                pip.GetComponent<MeshRenderer>().sharedMaterial = material;
+        }
+
+
         private void Enable(params int[] indices) { foreach (var index in indices) pips[index].SetActive(true); }
 
         private static Mesh GetDiskMesh()

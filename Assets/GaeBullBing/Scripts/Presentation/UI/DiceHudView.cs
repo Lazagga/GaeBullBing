@@ -14,10 +14,16 @@ namespace GaeBullBing.Presentation.UI
         [SerializeField] private Image[] playerHealthHearts;
 
         private GameController controller;
+        private DiceSystemView diceSystemView;
+
 
         public void Bind(GameController gameController)
         {
             controller = gameController;
+            diceSystemView = GetComponent<DiceSystemView>();
+            if (diceSystemView == null) diceSystemView = gameObject.AddComponent<DiceSystemView>();
+            diceSystemView.Initialize(gameController, this);
+
             if (diceFaceListView == null)
                 diceFaceListView = FindFirstObjectByType<DiceFaceListView>(FindObjectsInactive.Include);
             diceFaceListView?.Bind(gameController.State.Dice);
@@ -39,23 +45,41 @@ namespace GaeBullBing.Presentation.UI
                 OnRollClicked();
         }
 
-        public void SetRolling(bool rolling)
+public void SetRolling(bool rolling)
         {
-            rollButton.interactable = !rolling;
-            if (rolling)
-                rollButton.gameObject.SetActive(false);
+            if (rolling) diceSystemView?.SetVisible(false);
+
+            rollButton.gameObject.SetActive(true);
+            rollButton.interactable = !rolling && controller != null && controller.Session.CanRollDice;
+        }
+
+public void SetDiceSelectionOpen(bool open)
+        {
+            rollButton.gameObject.SetActive(true);
+            rollButton.interactable = !open && controller != null && controller.Session.CanRollDice;
         }
 
         public void SetBusy()
         {
+            diceSystemView?.SetVisible(false);
+
             rollButton.gameObject.SetActive(false);
             rollButton.interactable = false;
         }
 
         public void BeginPlayerTurn()
         {
+            diceSystemView?.SetVisible(true);
+            diceSystemView?.Refresh();
+
             rollButton.gameObject.SetActive(true);
-            rollButton.interactable = true;
+            rollButton.interactable = controller != null && controller.Session.CanRollDice;
+        }
+
+        public void RefreshRollAvailability()
+        {
+            if (rollButton != null)
+                rollButton.interactable = controller != null && controller.Session.CanRollDice;
         }
 
         public void ShowGameOver(int escapedCount, int escapeLimit)
@@ -80,7 +104,11 @@ namespace GaeBullBing.Presentation.UI
             remainingKillsText.text = $"총 포획 {controller.TotalKills}마리";
         }
 
-        public void RefreshDiceFaces() => diceFaceListView?.Refresh();
+        public void RefreshDiceFaces()
+        {
+            diceFaceListView?.Refresh();
+            diceSystemView?.Refresh();
+        }
 
         public void RefreshPlayerHealth()
         {
@@ -96,7 +124,7 @@ namespace GaeBullBing.Presentation.UI
 
         private void OnRollClicked()
         {
-            if (controller != null && controller.AcceptsGameplayInput)
+            if (controller != null && controller.AcceptsGameplayInput && controller.Session.CanRollDice)
                 controller.RollDiceAndMovePlayer();
         }
     }

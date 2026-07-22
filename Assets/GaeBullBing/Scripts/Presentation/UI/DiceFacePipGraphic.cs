@@ -24,6 +24,15 @@ namespace GaeBullBing.Presentation.UI
             SetVerticesDirty();
         }
 
+public void SetColors(Color dieColor, bool blackPips)
+        {
+            faceColor = dieColor;
+            pipColor = blackPips ? Color.black : Color.white;
+            borderColor = pipColor;
+            SetVerticesDirty();
+        }
+
+
         protected override void OnPopulateMesh(VertexHelper vertexHelper)
         {
             vertexHelper.Clear();

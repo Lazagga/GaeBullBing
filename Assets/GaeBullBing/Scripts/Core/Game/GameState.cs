@@ -25,6 +25,8 @@ namespace GaeBullBing.Core.Game
         public List<MonsterState> Monsters { get; } = new();
         public DifficultyState Difficulty { get; } = new();
         public List<DiceState> Dice { get; } = new();
+        public DiceInventoryState DiceInventory { get; } = new();
+
         public List<int> LastDiceResults { get; } = new();
         public int LastMoveDistance { get; set; }
         public Dictionary<TowerElement, float> PermanentTowerDamageRateBonuses { get; } = new();

@@ -39,12 +39,27 @@ namespace GaeBullBing.Presentation.UI
             Refresh();
         }
 
-        public void Refresh()
+public void Refresh()
         {
             if (dice == null || dice.Count < 2) return;
-            ApplyFaces(whiteFaces, BuildPhysicalFaces(dice[0]), false);
-            ApplyFaces(blackFaces, BuildPhysicalFaces(dice[1]), true);
+            RefreshSlot(whiteDiceButton, whiteFaces, dice[0]);
+            RefreshSlot(blackDiceButton, blackFaces, dice[1]);
         }
+
+private static void RefreshSlot(Button button, DiceFacePipGraphic[] faces, DiceState state)
+        {
+            if (button == null) return;
+            var equipped = state != null;
+            button.gameObject.SetActive(equipped);
+            if (!equipped) return;
+
+            ApplyFaces(faces, BuildPhysicalFaces(state), state);
+            button.image.color = new Color(state.Red, state.Green, state.Blue, 1f);
+            var outline = button.GetComponent<Outline>();
+            if (outline != null)
+                outline.effectColor = state.UsesBlackPips ? Color.black : Color.white;
+        }
+
 
         private void ToggleWhiteList()
         {
@@ -137,11 +152,12 @@ namespace GaeBullBing.Presentation.UI
             return result.ToArray();
         }
 
-        private static void ApplyFaces(DiceFacePipGraphic[] graphics, IReadOnlyList<int> values, bool inverted)
+        private static void ApplyFaces(DiceFacePipGraphic[] graphics, IReadOnlyList<int> values, DiceState state)
         {
+            var color = new Color(state.Red, state.Green, state.Blue, 1f);
             for (var index = 0; index < graphics.Length && index < values.Count; index++)
             {
-                graphics[index].SetInverted(inverted);
+                graphics[index].SetColors(color, state.UsesBlackPips);
                 graphics[index].SetValue(values[index]);
             }
         }

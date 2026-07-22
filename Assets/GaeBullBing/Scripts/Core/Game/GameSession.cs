@@ -50,8 +50,9 @@ namespace GaeBullBing.Core.Game
             else
                 boardService.Initialize(State.Board);
             State.Dice.Clear();
-            for (var index = 0; index < diceCount; index++)
-                State.Dice.Add(new DiceState());
+            State.Dice.Add(null);
+            State.Dice.Add(null);
+            State.DiceInventory.ResetToDefaults();
 
             State.Player.CurrentTileIndex = 0;
             State.Player.DicePoints = 0;
@@ -97,7 +98,7 @@ namespace GaeBullBing.Core.Game
 
         public int RollDiceAndMovePlayer()
         {
-            if (State.Board.TileCount == 0 || State.Dice.Count == 0)
+            if (State.Board.TileCount == 0 || !CanRollDice)
                 throw new InvalidOperationException("Start a game before rolling dice.");
 
             State.CurrentPhase = TurnPhase.DiceRoll;
@@ -284,6 +285,7 @@ namespace GaeBullBing.Core.Game
         {
             if (State.IsFinished)
                 return;
+
             State.CurrentPhase = TurnPhase.RoundEnd;
             State.Round++;
             State.CurrentPhase = TurnPhase.PlayerTurnStart;
@@ -483,5 +485,25 @@ namespace GaeBullBing.Core.Game
             if (tileIndex < 0 || tileIndex >= State.Board.TileCount) throw new ArgumentOutOfRangeException(nameof(tileIndex));
             State.Player.CurrentTileIndex = tileIndex;
         }
-    }
+
+
+public DiceState CreateLapReward()
+        {
+            return DiceCatalog.GetReward(Math.Max(0, State.Round - 1));
+        }
+
+        public bool StoreDiceReward(DiceState reward) =>
+            State.DiceInventory.TryStoreReward(reward);
+
+        public bool ReplaceReserveDice(int inventoryIndex, DiceState reward) =>
+            State.DiceInventory.Replace(inventoryIndex, reward, State.Dice);
+
+        public bool QueueDiceEquip(int slotIndex, int reserveIndex) =>
+            State.DiceInventory.QueueEquip(State.Dice, slotIndex, reserveIndex);
+
+
+public bool CanRollDice =>
+            State.Dice.Count == DiceInventoryState.EquippedCount &&
+            State.Dice[0] != null && State.Dice[1] != null;
+}
 }

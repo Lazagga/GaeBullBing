@@ -952,12 +952,13 @@ namespace GaeBullBing.Presentation.Game
         {
             State.CurrentPhase = TurnPhase.CameraOverview;
             yield return cameraController.ReturnToOverview();
-            if (pendingDiceTuning && diceTuningView != null)
+            if (pendingDiceTuning)
             {
                 pendingDiceTuning = false;
                 diceTuningComplete = false;
                 State.CurrentPhase = TurnPhase.DiceTuning;
-                diceTuningView.Show(State.Dice, ApplyDiceTuning, ApplyAllTowerDamageBoost);
+                var diceSystem = diceHud.GetComponent<DiceSystemView>();
+                diceSystem.ShowLapReward(Session.CreateLapReward(), () => diceTuningComplete = true);
                 yield return new WaitUntil(() => diceTuningComplete);
             }
             yield return ResolveEnemyTurnRoutine();
@@ -1145,6 +1146,7 @@ namespace GaeBullBing.Presentation.Game
             }
 
             Session.CompleteRound();
+            diceHud.RefreshDiceFaces();
 
             RefreshOpenTileInformation();
             diceHud.BeginPlayerTurn();
