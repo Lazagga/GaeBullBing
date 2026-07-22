@@ -49,10 +49,10 @@ namespace GaeBullBing.Core.Game
                 boardService.Initialize(State.Board, boardDefinition);
             else
                 boardService.Initialize(State.Board);
-            State.Dice.Clear();
-            State.Dice.Add(null);
-            State.Dice.Add(null);
             State.DiceInventory.ResetToDefaults();
+            State.Dice.Clear();
+            State.Dice.Add(State.DiceInventory.Dice[0]);
+            State.Dice.Add(State.DiceInventory.Dice[1]);
 
             State.Player.CurrentTileIndex = 0;
             State.Player.DicePoints = 0;

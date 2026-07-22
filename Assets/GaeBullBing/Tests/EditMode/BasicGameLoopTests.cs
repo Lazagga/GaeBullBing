@@ -83,30 +83,31 @@ namespace GaeBullBing.Tests.EditMode
         }
 
 [Test]
-        public void DiceInventory_StartsOwnedButUnequippedAndChangingSlotDoesNotDeleteDice()
+        public void DiceInventory_StartsWithDefaultDiceEquippedAndChangingSlotDoesNotDeleteDice()
         {
             var state = new GameState();
             var session = CreateSession(state);
             session.StartNewGame();
 
-            Assert.That(state.Dice[0], Is.Null);
-            Assert.That(state.Dice[1], Is.Null);
+            Assert.That(state.Dice[0].Id, Is.EqualTo("DICE_WHITE"));
+            Assert.That(state.Dice[1].Id, Is.EqualTo("DICE_BLACK"));
             Assert.That(state.DiceInventory.Dice[0].Id, Is.EqualTo("DICE_WHITE"));
             Assert.That(state.DiceInventory.Dice[1].Id, Is.EqualTo("DICE_BLACK"));
-            Assert.That(session.CanRollDice, Is.False);
+            Assert.That(session.CanRollDice, Is.True);
 
             var fire = GaeBullBing.Core.Dice.DiceCatalog.GetReward(0);
-            Assert.That(session.ReplaceReserveDice(1, fire), Is.True);
-            Assert.That(session.QueueDiceEquip(0, 1), Is.True);
+            Assert.That(session.StoreDiceReward(fire), Is.True);
+            Assert.That(session.QueueDiceEquip(0, 2), Is.True);
             Assert.That(state.Dice[0].Id, Is.EqualTo("DICE_FIRE"));
 
             Assert.That(session.QueueDiceEquip(0, 0), Is.True);
             session.CompleteRound();
 
             Assert.That(state.Dice[0].Id, Is.EqualTo("DICE_WHITE"));
-            Assert.That(state.Dice[1], Is.Null);
+            Assert.That(state.Dice[1].Id, Is.EqualTo("DICE_BLACK"));
             Assert.That(state.DiceInventory.Dice[0].Id, Is.EqualTo("DICE_WHITE"));
-            Assert.That(state.DiceInventory.Dice[1].Id, Is.EqualTo("DICE_FIRE"));
+            Assert.That(state.DiceInventory.Dice[1].Id, Is.EqualTo("DICE_BLACK"));
+            Assert.That(state.DiceInventory.Dice[2].Id, Is.EqualTo("DICE_FIRE"));
         }
 
 
