@@ -19,8 +19,6 @@ namespace GaeBullBing.Presentation.UI
         [SerializeField] private Sprite iceUpgradeSprite;
         [SerializeField] private Sprite physicsUpgradeSprite;
         [SerializeField] private Sprite electricUpgradeSprite;
-        [SerializeField] private RectTransform choicesRoot;
-        [SerializeField] private Button[] choiceButtons = Array.Empty<Button>();
         [SerializeField] private RectTransform upgradeChoicesRoot;
         [SerializeField] private Button[] upgradeChoiceButtons = Array.Empty<Button>();
         [SerializeField] private Vector2 screenOffset = new(0f, 145f);
@@ -29,16 +27,10 @@ namespace GaeBullBing.Presentation.UI
         private RectTransform canvasRect;
         private Transform worldTarget;
         private UnityEngine.Camera worldCamera;
-        private Sprite[] defaultChoiceSprites;
-        private Color[] defaultChoiceImageColors;
-        private Image.Type[] defaultChoiceImageTypes;
-        private bool[] defaultChoicePreserveAspect;
-        private Color[] defaultChoiceTextColors;
 
-        private void Awake()
+private void Awake()
         {
             canvasRect = GetComponentInParent<Canvas>().transform as RectTransform;
-            CacheDefaultChoiceStyles();
             Hide();
         }
 
@@ -53,7 +45,7 @@ namespace GaeBullBing.Presentation.UI
             menuRoot.anchoredPosition = menuPosition;
         }
 
-        private void Update()
+private void Update()
         {
             if (!menuRoot.gameObject.activeInHierarchy ||
                 developerConsole != null && !developerConsole.GameplayInputEnabled ||
@@ -71,8 +63,7 @@ namespace GaeBullBing.Presentation.UI
                 return;
             }
 
-            if (!choicesRoot.gameObject.activeInHierarchy &&
-                (upgradeChoicesRoot == null || !upgradeChoicesRoot.gameObject.activeInHierarchy))
+            if (upgradeChoicesRoot == null || !upgradeChoicesRoot.gameObject.activeInHierarchy)
                 return;
 
             if (keyboard.digit1Key.wasPressedThisFrame || keyboard.numpad1Key.wasPressedThisFrame)
@@ -83,14 +74,11 @@ namespace GaeBullBing.Presentation.UI
                 InvokeChoice(2);
         }
 
-        private void InvokeChoice(int index)
+private void InvokeChoice(int index)
         {
-            var buttons = upgradeChoicesRoot != null && upgradeChoicesRoot.gameObject.activeInHierarchy
-                ? upgradeChoiceButtons
-                : choiceButtons;
-            if (index < 0 || index >= buttons.Length)
+            if (index < 0 || index >= upgradeChoiceButtons.Length)
                 return;
-            var button = buttons[index];
+            var button = upgradeChoiceButtons[index];
             if (button != null && button.gameObject.activeInHierarchy && button.interactable)
                 button.onClick.Invoke();
         }
@@ -105,7 +93,6 @@ namespace GaeBullBing.Presentation.UI
             worldTarget = target;
             worldCamera = camera;
             menuRoot.gameObject.SetActive(true);
-            choicesRoot.gameObject.SetActive(false);
             primaryButton.gameObject.SetActive(true);
             var actionSprite = hasTower ? enhanceButtonSprite : buildButtonSprite;
             var image = primaryButton.image;
@@ -119,30 +106,12 @@ namespace GaeBullBing.Presentation.UI
             primaryButton.onClick.AddListener(() => onPrimarySelected());
         }
 
-        public void ShowChoices(IReadOnlyList<TowerDefinition> definitions, Action<TowerDefinition> onSelected)
-        {
-            ClearChoices();
-            primaryButton.gameObject.SetActive(false);
-            choicesRoot.gameObject.SetActive(true);
 
-            var visibleCount = Mathf.Min(definitions.Count, choiceButtons.Length);
-            for (var index = 0; index < visibleCount; index++)
-            {
-                var definition = definitions[index];
-                var button = choiceButtons[index];
-                button.gameObject.SetActive(true);
-                RestoreChoiceStyle(button, index);
-                button.GetComponentInChildren<Text>().text = definition.DisplayName;
-                button.onClick.RemoveAllListeners();
-                button.onClick.AddListener(() => onSelected(definition));
-            }
-        }
 
         public void ShowUpgradeChoices(IReadOnlyList<TowerUpgradeDefinition> definitions, Action<TowerUpgradeDefinition> onSelected)
         {
             ClearChoices();
             primaryButton.gameObject.SetActive(false);
-            choicesRoot.gameObject.SetActive(false);
             upgradeChoicesRoot.gameObject.SetActive(true);
             var visibleCount = Mathf.Min(definitions.Count, upgradeChoiceButtons.Length);
             for (var index = 0; index < visibleCount; index++)
@@ -160,39 +129,9 @@ namespace GaeBullBing.Presentation.UI
             }
         }
 
-        private void CacheDefaultChoiceStyles()
-        {
-            var count = choiceButtons?.Length ?? 0;
-            defaultChoiceSprites = new Sprite[count];
-            defaultChoiceImageColors = new Color[count];
-            defaultChoiceImageTypes = new Image.Type[count];
-            defaultChoicePreserveAspect = new bool[count];
-            defaultChoiceTextColors = new Color[count];
-            for (var index = 0; index < count; index++)
-            {
-                var button = choiceButtons[index];
-                if (button == null) continue;
-                var image = button.image;
-                defaultChoiceSprites[index] = image.sprite;
-                defaultChoiceImageColors[index] = image.color;
-                defaultChoiceImageTypes[index] = image.type;
-                defaultChoicePreserveAspect[index] = image.preserveAspect;
-                var label = button.GetComponentInChildren<Text>(true);
-                if (label != null) defaultChoiceTextColors[index] = label.color;
-            }
-        }
 
-        private void RestoreChoiceStyle(Button button, int index)
-        {
-            if (button == null || index < 0 || index >= defaultChoiceSprites.Length) return;
-            var image = button.image;
-            image.sprite = defaultChoiceSprites[index];
-            image.color = defaultChoiceImageColors[index];
-            image.type = defaultChoiceImageTypes[index];
-            image.preserveAspect = defaultChoicePreserveAspect[index];
-            var label = button.GetComponentInChildren<Text>(true);
-            if (label != null) label.color = defaultChoiceTextColors[index];
-        }
+
+
 
         private void ApplyUpgradeStyle(Button button, GaeBullBing.Core.TowerElement element)
         {
@@ -222,18 +161,8 @@ namespace GaeBullBing.Presentation.UI
             menuRoot.gameObject.SetActive(false);
         }
 
-        private void ClearChoices()
+private void ClearChoices()
         {
-            if (choicesRoot == null)
-                return;
-
-            foreach (var button in choiceButtons)
-            {
-                if (button == null)
-                    continue;
-                button.onClick.RemoveAllListeners();
-                button.gameObject.SetActive(false);
-            }
             if (upgradeChoicesRoot != null)
                 upgradeChoicesRoot.gameObject.SetActive(false);
             foreach (var button in upgradeChoiceButtons)

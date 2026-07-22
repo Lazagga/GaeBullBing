@@ -21,7 +21,8 @@ namespace GaeBullBing.Presentation.UI
         {
             controller = gameController;
             diceSystemView = GetComponent<DiceSystemView>();
-            if (diceSystemView == null) diceSystemView = gameObject.AddComponent<DiceSystemView>();
+            if (diceSystemView == null)
+                throw new MissingReferenceException("Dice Controller에 DiceSystemView가 연결되어 있지 않습니다.");
             diceSystemView.Initialize(gameController, this);
 
             if (diceFaceListView == null)

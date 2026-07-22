@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using GaeBullBing.Core.Dice;
 using GaeBullBing.Presentation.Game;
 using UnityEngine;
-
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
 using UnityEngine.UI;
@@ -12,66 +11,224 @@ namespace GaeBullBing.Presentation.UI
 {
     public sealed class DiceSystemView : MonoBehaviour
     {
+        [Header("Scene UI")]
+        [SerializeField] private RectTransform loadoutRoot;
+        [SerializeField] private Button[] slotButtons;
+        [SerializeField] private RectTransform dropdown;
+        [SerializeField] private Button[] inventoryButtons;
+        [SerializeField] private Text emptyInventoryText;
+        [SerializeField] private GameObject rewardOverlay;
+        [SerializeField] private Text rewardText;
+        [SerializeField] private Button acquireButton;
+        [SerializeField] private Button towerBoostButton;
+        [SerializeField] private Button[] replacementButtons;
+
         private GameController controller;
         private DiceHudView hud;
-        private RectTransform loadoutRoot;
-        private RectTransform dropdown;
-        private GameObject rewardOverlay;
-        private Text rewardText;
-        private Button[] slotButtons;
-        private int selectedSlot;
-        
+        private DeveloperConsoleView developerConsole;
+        private DiceState pendingReward;
         private Action pendingRewardCompleted;
         private bool replacementOpen;
-        private DeveloperConsoleView developerConsole;
-private DiceState pendingReward;
+        private int selectedSlot = -1;
 
         public void Initialize(GameController gameController, DiceHudView diceHud)
         {
             controller = gameController;
-            
+            hud = diceHud;
             developerConsole = FindFirstObjectByType<DeveloperConsoleView>(FindObjectsInactive.Include);
-hud = diceHud;
-            if (loadoutRoot == null) Build();
+            ValidateSceneReferences();
+            ConfigureSlotButtons();
             Refresh();
         }
 
-private void Update()
+        private void Update()
         {
             var keyboard = Keyboard.current;
             if (keyboard == null ||
                 developerConsole != null && (!developerConsole.GameplayInputEnabled || developerConsole.IsOpen))
                 return;
 
-            if (rewardOverlay != null && rewardOverlay.activeInHierarchy)
+            if (rewardOverlay.activeInHierarchy)
             {
                 HandleRewardKeyboard(keyboard);
                 return;
             }
+            if (!loadoutRoot.gameObject.activeInHierarchy) return;
 
-            if (loadoutRoot == null || !loadoutRoot.gameObject.activeInHierarchy)
-                return;
-
-            if (dropdown != null && dropdown.gameObject.activeInHierarchy)
+            if (dropdown.gameObject.activeInHierarchy)
             {
-                if (keyboard.escapeKey.wasPressedThisFrame)
-                    CloseDropdown();
-                else if (Pressed(keyboard.digit1Key, keyboard.numpad1Key))
-                    InvokeActiveButton(dropdown, 0);
-                else if (Pressed(keyboard.digit2Key, keyboard.numpad2Key))
-                    InvokeActiveButton(dropdown, 1);
+                if (keyboard.escapeKey.wasPressedThisFrame) CloseDropdown();
+                else if (Pressed(keyboard.digit1Key, keyboard.numpad1Key)) InvokeButton(inventoryButtons, 0);
+                else if (Pressed(keyboard.digit2Key, keyboard.numpad2Key)) InvokeButton(inventoryButtons, 1);
                 return;
             }
 
-            if (Pressed(keyboard.digit1Key, keyboard.numpad1Key))
-                InvokeButton(slotButtons, 0);
-            else if (Pressed(keyboard.digit2Key, keyboard.numpad2Key))
-                InvokeButton(slotButtons, 1);
+            if (Pressed(keyboard.digit1Key, keyboard.numpad1Key)) InvokeButton(slotButtons, 0);
+            else if (Pressed(keyboard.digit2Key, keyboard.numpad2Key)) InvokeButton(slotButtons, 1);
         }
 
-private void HandleRewardKeyboard(Keyboard keyboard)
+        public void SetVisible(bool visible)
         {
-            var actions = rewardOverlay.transform.Find("Actions");
+            loadoutRoot.gameObject.SetActive(visible);
+            if (visible) return;
+            dropdown.gameObject.SetActive(false);
+            SetSelectedSlot(-1);
+            ClearEventSelection();
+        }
+
+        public void Refresh()
+        {
+            if (controller == null) return;
+            for (var slot = 0; slot < slotButtons.Length; slot++)
+            {
+                var dice = controller.State.Dice[slot];
+                var label = slotButtons[slot].GetComponentInChildren<Text>(true);
+                if (dice == null)
+                {
+                    slotButtons[slot].image.color = new Color(.12f, .11f, .10f, 1f);
+                    label.text = "?\n주사위 선택";
+                    label.color = Color.white;
+                    continue;
+                }
+                slotButtons[slot].image.color = new Color(.11f, .10f, .085f, .98f);
+                label.text = $"?\n{dice.DisplayName}";
+                label.color = Color.white;
+            }
+            if (dropdown.gameObject.activeSelf) ShowDropdown(selectedSlot);
+        }
+
+        public void ShowLapReward(DiceState reward, Action completed)
+        {
+            pendingReward = reward;
+            pendingRewardCompleted = completed;
+            replacementOpen = false;
+            rewardOverlay.SetActive(true);
+            rewardText.text = $"완주 보상\n\n{reward.DisplayName}\n{FormatFaces(reward)}\n{reward.PassiveDescription}";
+            SetRewardMainVisible(true);
+
+            acquireButton.onClick.RemoveAllListeners();
+            towerBoostButton.onClick.RemoveAllListeners();
+            acquireButton.onClick.AddListener(() =>
+            {
+                if (controller.Session.StoreDiceReward(pendingReward)) CloseReward(completed);
+                else ShowReplacement(completed);
+            });
+            towerBoostButton.onClick.AddListener(() =>
+            {
+                controller.Session.AddPermanentAllTowerDamageRateBonus(.05f);
+                CloseReward(completed);
+            });
+        }
+
+        private void ShowReplacement(Action completed)
+        {
+            replacementOpen = true;
+            rewardText.text = $"인벤토리가 가득 찼습니다.\n교체할 주사위를 선택하세요.\n\n{pendingReward.DisplayName}\n{FormatFaces(pendingReward)}";
+            SetRewardMainVisible(false);
+            var inventory = controller.State.DiceInventory.Dice;
+            for (var index = 0; index < replacementButtons.Length; index++)
+            {
+                var button = replacementButtons[index];
+                var active = index < inventory.Count;
+                button.gameObject.SetActive(active);
+                button.onClick.RemoveAllListeners();
+                if (!active) continue;
+                var inventoryIndex = index;
+                var dice = inventory[index];
+                button.GetComponentInChildren<Text>(true).text = $"{dice.DisplayName}\n{FormatFaces(dice)}";
+                button.image.color = DiceColor(dice);
+                button.onClick.AddListener(() =>
+                {
+                    controller.Session.ReplaceReserveDice(inventoryIndex, pendingReward);
+                    CloseReward(completed);
+                });
+            }
+        }
+
+        private void ShowDropdown(int slot)
+        {
+            if (slot < 0 || slot >= slotButtons.Length) return;
+            selectedSlot = slot;
+            SetSelectedSlot(slot);
+            dropdown.gameObject.SetActive(true);
+            hud.SetDiceSelectionOpen(true);
+            var inventory = controller.State.DiceInventory.Dice;
+            var candidateIndex = 0;
+            for (var inventoryIndex = 0; inventoryIndex < inventory.Count; inventoryIndex++)
+            {
+                var dice = inventory[inventoryIndex];
+                if (IsEquipped(dice)) continue;
+                if (candidateIndex >= inventoryButtons.Length) break;
+                ConfigureInventoryButton(inventoryButtons[candidateIndex], inventoryIndex, dice);
+                candidateIndex++;
+            }
+            for (var index = candidateIndex; index < inventoryButtons.Length; index++)
+                inventoryButtons[index].gameObject.SetActive(false);
+            emptyInventoryText.gameObject.SetActive(candidateIndex == 0);
+        }
+
+        private void ConfigureInventoryButton(Button button, int inventoryIndex, DiceState dice)
+        {
+            button.gameObject.SetActive(true);
+            button.onClick.RemoveAllListeners();
+            button.GetComponentInChildren<Text>(true).text =
+                $"{dice.DisplayName}\n{FormatFaces(dice)}\n{dice.PassiveDescription}";
+            button.image.color = DiceColor(dice);
+            button.onClick.AddListener(() =>
+            {
+                controller.Session.QueueDiceEquip(selectedSlot, inventoryIndex);
+                CloseDropdown();
+                hud.RefreshRollAvailability();
+                hud.RefreshDiceFaces();
+            });
+        }
+
+        private bool IsEquipped(DiceState dice)
+        {
+            foreach (var equipped in controller.State.Dice)
+                if (ReferenceEquals(equipped, dice)) return true;
+            return false;
+        }
+
+        private void ConfigureSlotButtons()
+        {
+            for (var slot = 0; slot < slotButtons.Length; slot++)
+            {
+                var captured = slot;
+                var navigation = slotButtons[slot].navigation;
+                navigation.mode = Navigation.Mode.None;
+                slotButtons[slot].navigation = navigation;
+                slotButtons[slot].onClick.RemoveAllListeners();
+                slotButtons[slot].onClick.AddListener(() => ToggleDropdown(captured));
+            }
+        }
+
+        private void ToggleDropdown(int slot)
+        {
+            if (dropdown.gameObject.activeSelf && selectedSlot == slot) CloseDropdown();
+            else ShowDropdown(slot);
+        }
+
+        private void CloseDropdown()
+        {
+            dropdown.gameObject.SetActive(false);
+            SetSelectedSlot(-1);
+            hud.SetDiceSelectionOpen(false);
+            ClearEventSelection();
+        }
+
+        private void CloseReward(Action completed)
+        {
+            rewardOverlay.SetActive(false);
+            pendingReward = null;
+            pendingRewardCompleted = null;
+            replacementOpen = false;
+            hud.RefreshDiceFaces();
+            completed?.Invoke();
+        }
+
+        private void HandleRewardKeyboard(Keyboard keyboard)
+        {
             if (replacementOpen)
             {
                 if (keyboard.escapeKey.wasPressedThisFrame)
@@ -79,28 +236,41 @@ private void HandleRewardKeyboard(Keyboard keyboard)
                     ShowLapReward(pendingReward, pendingRewardCompleted);
                     return;
                 }
-
-                if (Pressed(keyboard.digit1Key, keyboard.numpad1Key)) InvokeActiveButton(actions, 0);
-                else if (Pressed(keyboard.digit2Key, keyboard.numpad2Key)) InvokeActiveButton(actions, 1);
-                else if (Pressed(keyboard.digit3Key, keyboard.numpad3Key)) InvokeActiveButton(actions, 2);
-                else if (Pressed(keyboard.digit4Key, keyboard.numpad4Key)) InvokeActiveButton(actions, 3);
+                if (Pressed(keyboard.digit1Key, keyboard.numpad1Key)) InvokeButton(replacementButtons, 0);
+                else if (Pressed(keyboard.digit2Key, keyboard.numpad2Key)) InvokeButton(replacementButtons, 1);
+                else if (Pressed(keyboard.digit3Key, keyboard.numpad3Key)) InvokeButton(replacementButtons, 2);
+                else if (Pressed(keyboard.digit4Key, keyboard.numpad4Key)) InvokeButton(replacementButtons, 3);
                 return;
             }
-
-            if (Pressed(keyboard.digit1Key, keyboard.numpad1Key))
-                InvokeButton(actions.Find("Acquire")?.GetComponent<Button>());
-            else if (Pressed(keyboard.digit2Key, keyboard.numpad2Key))
-                InvokeButton(actions.Find("Decline")?.GetComponent<Button>());
+            if (Pressed(keyboard.digit1Key, keyboard.numpad1Key)) InvokeButton(acquireButton);
+            else if (Pressed(keyboard.digit2Key, keyboard.numpad2Key)) InvokeButton(towerBoostButton);
         }
 
-private void CloseDropdown()
+        private void SetRewardMainVisible(bool visible)
         {
-            if (dropdown == null) return;
-            dropdown.gameObject.SetActive(false);
-            SetSelectedSlot(-1);
-            hud.SetDiceSelectionOpen(false);
-            if (UnityEngine.EventSystems.EventSystem.current != null)
-                UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(null);
+            acquireButton.gameObject.SetActive(visible);
+            towerBoostButton.gameObject.SetActive(visible);
+            foreach (var button in replacementButtons) button.gameObject.SetActive(false);
+        }
+
+        private void SetSelectedSlot(int slot)
+        {
+            selectedSlot = slot;
+            for (var index = 0; index < slotButtons.Length; index++)
+            {
+                var outline = slotButtons[index].GetComponent<Outline>();
+                if (outline != null) outline.enabled = index == slot;
+            }
+        }
+
+        private void ValidateSceneReferences()
+        {
+            if (loadoutRoot == null || dropdown == null || rewardOverlay == null || rewardText == null ||
+                acquireButton == null || towerBoostButton == null || emptyInventoryText == null ||
+                slotButtons == null || slotButtons.Length != 2 ||
+                inventoryButtons == null || inventoryButtons.Length < 2 ||
+                replacementButtons == null || replacementButtons.Length != 4)
+                throw new MissingReferenceException("DiceSystemView의 Scene UI 참조가 완전하지 않습니다.");
         }
 
         private static bool Pressed(KeyControl main, KeyControl numpad) =>
@@ -118,314 +288,10 @@ private void CloseDropdown()
                 button.onClick.Invoke();
         }
 
-        private static void InvokeActiveButton(Transform root, int index)
+        private static void ClearEventSelection()
         {
-            if (root == null || index < 0) return;
-            var buttons = root.GetComponentsInChildren<Button>(false);
-            if (index < buttons.Length) InvokeButton(buttons[index]);
-        }
-
-
-
-
-public void SetVisible(bool visible)
-        {
-            if (loadoutRoot != null) loadoutRoot.gameObject.SetActive(visible);
-            if (!visible && dropdown != null) dropdown.gameObject.SetActive(false);
-            if (!visible)
-            {
-                SetSelectedSlot(-1);
-                if (UnityEngine.EventSystems.EventSystem.current != null)
-                    UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(null);
-            }
-
-        }
-
-
-        public void Refresh()
-        {
-            if (controller == null || slotButtons == null) return;
-            for (var slot = 0; slot < slotButtons.Length; slot++)
-            {
-                var dice = controller.State.Dice[slot];
-                var label = slotButtons[slot].GetComponentInChildren<Text>();
-                if (dice == null)
-                {
-                    slotButtons[slot].GetComponent<Image>().color = new Color(.12f, .11f, .10f, 1f);
-                    label.text = "?\n주사위 선택";
-                    label.color = Color.white;
-                    continue;
-                }
-                slotButtons[slot].GetComponent<Image>().color = new Color(.11f, .10f, .085f, .98f);
-                label.text = $"?\n{dice.DisplayName}";
-                label.fontSize = 22;
-                label.color = Color.white;
-            }
-            if (dropdown != null && dropdown.gameObject.activeSelf) ShowDropdown(selectedSlot);
-        }
-
-public void ShowLapReward(DiceState reward, Action completed)
-        {
-            
-            pendingRewardCompleted = completed;
-            replacementOpen = false;
-pendingReward = reward;
-            rewardOverlay.SetActive(true);
-            rewardText.text = $"완주 보상\n\n{reward.DisplayName}\n{FormatFaces(reward)}\n{reward.PassiveDescription}";
-            var actions = rewardOverlay.transform.Find("Actions");
-            for (var index = 2; index < actions.childCount; index++)
-                actions.GetChild(index).gameObject.SetActive(false);
-            var acquire = actions.Find("Acquire").GetComponent<Button>();
-            var decline = actions.Find("Decline").GetComponent<Button>();
-            acquire.gameObject.SetActive(true);
-            decline.gameObject.SetActive(true);
-            var actionLayout = actions.GetComponent<HorizontalLayoutGroup>();
-            actionLayout.spacing = 20;
-            acquire.GetComponent<RectTransform>().sizeDelta = new Vector2(210, 72);
-            decline.GetComponent<RectTransform>().sizeDelta = new Vector2(210, 72);
-            acquire.GetComponentInChildren<Text>().text = "획득하기";
-            decline.GetComponentInChildren<Text>().text = "타워 강화";
-            acquire.GetComponent<Image>().color = new Color(.78f, .53f, .17f);
-            decline.GetComponent<Image>().color = new Color(.25f, .27f, .31f);
-            acquire.GetComponentInChildren<Text>().color = Color.white;
-            decline.GetComponentInChildren<Text>().color = Color.white;
-            acquire.onClick.RemoveAllListeners();
-            decline.onClick.RemoveAllListeners();
-            acquire.onClick.AddListener(() =>
-            {
-                if (controller.Session.StoreDiceReward(pendingReward))
-                {
-                    CloseReward(completed);
-                    return;
-                }
-                ShowReplacement(completed);
-            });
-            decline.onClick.AddListener(() =>
-            {
-                controller.Session.AddPermanentAllTowerDamageRateBonus(.05f);
-                CloseReward(completed);
-            });
-        }
-
-        private void ShowReplacement(Action completed)
-        {
-            replacementOpen = true;
-            var inventory = controller.State.DiceInventory.Dice;
-            rewardText.text = $"인벤토리가 가득 찼습니다.\n교체할 주사위를 선택하세요.\n\n{pendingReward.DisplayName}\n{FormatFaces(pendingReward)}";
-            var actions = rewardOverlay.transform.Find("Actions");
-
-            actions.GetComponent<HorizontalLayoutGroup>().spacing = 8;
-
-            while (actions.childCount < inventory.Count)
-            {
-                var button = CreateButton(actions, "", Color.gray, new Vector2(105, 72));
-                button.name = $"Replace{actions.childCount - 1}";
-            }
-
-            for (var index = 0; index < actions.childCount; index++)
-            {
-                var button = actions.GetChild(index).GetComponent<Button>();
-                var active = index < inventory.Count;
-                button.gameObject.SetActive(active);
-                if (!active) continue;
-
-                var inventoryIndex = index;
-                var dice = inventory[index];
-                button.GetComponent<RectTransform>().sizeDelta = new Vector2(105, 72);
-                button.GetComponentInChildren<Text>().text = $"{dice.DisplayName}\n{FormatFaces(dice)}";
-                button.GetComponent<Image>().color = DiceColor(dice);
-                button.GetComponentInChildren<Text>().color =
-                    Luminance(button.GetComponent<Image>().color) > .72f ? Color.black : Color.white;
-                button.onClick.RemoveAllListeners();
-                button.onClick.AddListener(() =>
-                {
-                    controller.Session.ReplaceReserveDice(inventoryIndex, pendingReward);
-                    CloseReward(completed);
-                });
-            }
-        }
-
-        private void CloseReward(Action completed)
-        {
-            rewardOverlay.SetActive(false);
-            
-            pendingRewardCompleted = null;
-            replacementOpen = false;
-pendingReward = null;
-            hud.RefreshDiceFaces();
-            completed?.Invoke();
-        }
-
-        private void ToggleDropdown(int slot)
-        {
-            if (dropdown.gameObject.activeSelf && selectedSlot == slot)
-            {
-                dropdown.gameObject.SetActive(false);
-                SetSelectedSlot(-1);
-                hud.SetDiceSelectionOpen(false);
-                return;
-            }
-            ShowDropdown(slot);
-        }
-
-private void ShowDropdown(int slot)
-        {
-            selectedSlot = slot;
-            SetSelectedSlot(slot);
-            foreach (Transform child in dropdown)
-            {
-                child.gameObject.SetActive(false);
-                Destroy(child.gameObject);
-            }
-            dropdown.gameObject.SetActive(true);
-            hud.SetDiceSelectionOpen(true);
-
-            var inventory = controller.State.DiceInventory.Dice;
-            var candidateCount = 0;
-            for (var index = 0; index < inventory.Count; index++)
-            {
-                var dice = inventory[index];
-                var equipped = false;
-                for (var equippedSlot = 0; equippedSlot < controller.State.Dice.Count; equippedSlot++)
-                    if (ReferenceEquals(controller.State.Dice[equippedSlot], dice))
-                    {
-                        equipped = true;
-                        break;
-                    }
-                if (equipped) continue;
-
-                candidateCount++;
-                var inventoryIndex = index;
-                var button = CreateButton(dropdown,
-                    $"{dice.DisplayName}\n{FormatFaces(dice)}\n{dice.PassiveDescription}",
-                    DiceColor(dice), new Vector2(210, 108));
-                button.onClick.AddListener(() =>
-                {
-                    controller.Session.QueueDiceEquip(selectedSlot, inventoryIndex);
-                    hud.RefreshRollAvailability();
-                    dropdown.gameObject.SetActive(false);
-                    SetSelectedSlot(-1);
-                    hud.SetDiceSelectionOpen(false);
-                    if (UnityEngine.EventSystems.EventSystem.current != null)
-                        UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(null);
-                    hud.RefreshDiceFaces();
-                });
-            }
-
-            if (candidateCount == 0)
-            {
-                var message = CreateText(dropdown, "장착 가능한 다른 주사위가 없습니다.", 17, Color.white);
-                message.alignment = TextAnchor.MiddleCenter;
-                message.rectTransform.sizeDelta = new Vector2(430, 90);
-            }
-        }
-
-        private void Build()
-        {
-            var canvas = GetComponentInParent<Canvas>();
-            if (canvas == null) canvas = FindFirstObjectByType<Canvas>();
-            var root = new GameObject("Dice Loadout", typeof(RectTransform));
-            root.transform.SetParent(canvas.transform, false);
-            loadoutRoot = root.GetComponent<RectTransform>();
-            loadoutRoot.anchorMin = loadoutRoot.anchorMax = new Vector2(.5f, .67f);
-            loadoutRoot.sizeDelta = new Vector2(350, 150);
-
-            var layout = root.AddComponent<HorizontalLayoutGroup>();
-            layout.spacing = 18;
-            layout.childAlignment = TextAnchor.MiddleCenter;
-            layout.childControlWidth = false;
-            layout.childControlHeight = false;
-            slotButtons = new Button[2];
-            for (var slot = 0; slot < 2; slot++)
-            {
-                var captured = slot;
-                slotButtons[slot] = CreateButton(loadoutRoot, "?", new Color(.11f, .10f, .085f), new Vector2(155, 145));
-                var navigation = slotButtons[slot].navigation;
-                navigation.mode = Navigation.Mode.None;
-                slotButtons[slot].navigation = navigation;
-                var outline = slotButtons[slot].gameObject.AddComponent<Outline>();
-                outline.effectColor = new Color(1f, .82f, .36f, 1f);
-                outline.effectDistance = new Vector2(4f, -4f);
-                outline.enabled = false;
-
-                slotButtons[slot].onClick.AddListener(() => ToggleDropdown(captured));
-            }
-
-            var dropObject = new GameObject("Dice Inventory Dropdown", typeof(RectTransform), typeof(Image),
-                typeof(HorizontalLayoutGroup), typeof(ContentSizeFitter));
-            dropObject.transform.SetParent(canvas.transform, false);
-            dropdown = dropObject.GetComponent<RectTransform>();
-            dropdown.anchorMin = dropdown.anchorMax = new Vector2(.5f, .465f);
-            dropdown.sizeDelta = new Vector2(500, 132);
-            dropObject.GetComponent<Image>().color = new Color(.08f, .07f, .06f, .96f);
-            var dropLayout = dropObject.GetComponent<HorizontalLayoutGroup>();
-            dropLayout.padding = new RectOffset(18, 18, 12, 12);
-            dropLayout.spacing = 14;
-            dropLayout.childAlignment = TextAnchor.MiddleCenter;
-            dropLayout.childControlWidth = false;
-            dropLayout.childControlHeight = false;
-            dropObject.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            dropObject.SetActive(false);
-
-            rewardOverlay = new GameObject("Dice Reward Overlay", typeof(RectTransform), typeof(Image));
-            rewardOverlay.transform.SetParent(canvas.transform, false);
-            var rewardRect = rewardOverlay.GetComponent<RectTransform>();
-            rewardRect.anchorMin = new Vector2(.22f, .15f);
-            rewardRect.anchorMax = new Vector2(.78f, .85f);
-            rewardRect.offsetMin = rewardRect.offsetMax = Vector2.zero;
-            rewardOverlay.GetComponent<Image>().color = new Color(.035f, .035f, .04f, .97f);
-            rewardText = CreateText(rewardRect, "", 28, new Color(1f, .84f, .48f));
-            rewardText.alignment = TextAnchor.MiddleCenter;
-            rewardText.rectTransform.anchorMin = new Vector2(.08f, .28f);
-            rewardText.rectTransform.anchorMax = new Vector2(.92f, .94f);
-            rewardText.rectTransform.offsetMin = rewardText.rectTransform.offsetMax = Vector2.zero;
-
-            var actionObject = new GameObject("Actions", typeof(RectTransform), typeof(HorizontalLayoutGroup));
-            actionObject.transform.SetParent(rewardRect, false);
-            var actionRect = actionObject.GetComponent<RectTransform>();
-            actionRect.anchorMin = new Vector2(.04f, .06f);
-            actionRect.anchorMax = new Vector2(.96f, .25f);
-            actionRect.offsetMin = actionRect.offsetMax = Vector2.zero;
-            var actionLayout = actionObject.GetComponent<HorizontalLayoutGroup>();
-            actionLayout.spacing = 20;
-            actionLayout.childAlignment = TextAnchor.MiddleCenter;
-            actionLayout.childControlWidth = false;
-            actionLayout.childControlHeight = false;
-            var take = CreateButton(actionRect, "획득하기", new Color(.78f, .53f, .17f), new Vector2(210, 72));
-            take.name = "Acquire";
-            var skip = CreateButton(actionRect, "타워 강화", new Color(.25f, .27f, .31f), new Vector2(210, 72));
-            skip.name = "Decline";
-            rewardOverlay.SetActive(false);
-        }
-
-        private static Button CreateButton(Transform parent, string label, Color color, Vector2 size)
-        {
-            var obj = new GameObject(label, typeof(RectTransform), typeof(Image), typeof(Button));
-            obj.transform.SetParent(parent, false);
-            obj.GetComponent<RectTransform>().sizeDelta = size;
-            obj.GetComponent<Image>().color = color;
-            var text = CreateText(obj.GetComponent<RectTransform>(), label, 17,
-                Luminance(color) > .72f ? Color.black : Color.white);
-            text.alignment = TextAnchor.MiddleCenter;
-            text.rectTransform.anchorMin = Vector2.zero;
-            text.rectTransform.anchorMax = Vector2.one;
-            text.rectTransform.offsetMin = new Vector2(8, 6);
-            text.rectTransform.offsetMax = new Vector2(-8, -6);
-            return obj.GetComponent<Button>();
-        }
-
-        private static Text CreateText(Transform parent, string value, int size, Color color)
-        {
-            var obj = new GameObject("Text", typeof(RectTransform), typeof(Text));
-            obj.transform.SetParent(parent, false);
-            var text = obj.GetComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.fontSize = size;
-            text.color = color;
-            text.text = value;
-            text.horizontalOverflow = HorizontalWrapMode.Wrap;
-            text.verticalOverflow = VerticalWrapMode.Overflow;
-            return text;
+            if (UnityEngine.EventSystems.EventSystem.current != null)
+                UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(null);
         }
 
         private static string FormatFaces(DiceState dice)
@@ -439,19 +305,5 @@ private void ShowDropdown(int slot)
 
         private static Color DiceColor(DiceState dice) =>
             new Color(dice.Red, dice.Green, dice.Blue, 1f);
-
-        private static float Luminance(Color color) =>
-            color.r * .299f + color.g * .587f + color.b * .114f;
-    
-
-private void SetSelectedSlot(int slot)
-        {
-            if (slotButtons == null) return;
-            for (var index = 0; index < slotButtons.Length; index++)
-            {
-                var outline = slotButtons[index].GetComponent<Outline>();
-                if (outline != null) outline.enabled = index == slot;
-            }
-        }
-}
+    }
 }

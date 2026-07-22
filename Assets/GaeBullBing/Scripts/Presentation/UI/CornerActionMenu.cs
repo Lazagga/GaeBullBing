@@ -11,14 +11,10 @@ namespace GaeBullBing.Presentation.UI
         [SerializeField] private GameObject root;
         [SerializeField] private GameObject elementRoot;
         [SerializeField] private Text title;
-        [SerializeField] private Text teleportTitle;
         [SerializeField] private Button fireButton;
         [SerializeField] private Button iceButton;
         [SerializeField] private Button physicsButton;
         [SerializeField] private Button electricButton;
-        [SerializeField] private GameObject teleportRoot;
-        [SerializeField] private Dropdown tileDropdown;
-        [SerializeField] private Button teleportButton;
         [SerializeField] private DeveloperConsoleView developerConsole;
 
         private void Awake()
@@ -27,9 +23,9 @@ namespace GaeBullBing.Presentation.UI
                 developerConsole = FindFirstObjectByType<DeveloperConsoleView>(FindObjectsInactive.Include);
         }
 
-        private void Update()
+private void Update()
         {
-            if (root == null || !root.activeInHierarchy || teleportRoot.activeInHierarchy ||
+            if (root == null || !root.activeInHierarchy ||
                 developerConsole != null && !developerConsole.GameplayInputEnabled ||
                 developerConsole != null && developerConsole.IsOpen) return;
             var keyboard = Keyboard.current;
@@ -49,7 +45,7 @@ namespace GaeBullBing.Presentation.UI
         {
             root.SetActive(true);
             elementRoot.SetActive(true);
-            root.SetActive(true); teleportRoot.SetActive(false); title.text = "강화할 속성 선택";
+            title.text = "강화할 속성 선택";
             title.color = Color.white;
             Bind(fireButton, TowerElement.Fire, selected); Bind(iceButton, TowerElement.Ice, selected);
             Bind(physicsButton, TowerElement.Physics, selected); Bind(electricButton, TowerElement.Electric, selected);
@@ -58,17 +54,7 @@ namespace GaeBullBing.Presentation.UI
             SetElementButtons(true);
         }
 
-        public void ShowTeleportSelection(int tileCount, int currentTile, Action<int> selected)
-        {
-            root.SetActive(true);
-            elementRoot.SetActive(false);
-            root.SetActive(true); SetElementButtons(false); teleportRoot.SetActive(true); title.text = "이동할 타일 선택";
-            if (teleportTitle != null) teleportTitle.text = title.text;
-            tileDropdown.ClearOptions(); var options = new System.Collections.Generic.List<string>();
-            for (var i = 0; i < tileCount; i++) options.Add(i == currentTile ? $"{i} (현재 위치)" : i.ToString());
-            tileDropdown.AddOptions(options); tileDropdown.value = currentTile;
-            teleportButton.onClick.RemoveAllListeners(); teleportButton.onClick.AddListener(() => selected(tileDropdown.value));
-        }
+
 
         public void Hide() { if (root != null) root.SetActive(false); }
         private void Bind(Button button, TowerElement element, Action<TowerElement> selected)

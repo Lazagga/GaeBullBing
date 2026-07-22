@@ -13,3 +13,6 @@
 *.sln
 *.user
 *.suo
+
+# Json Folder
+Assets/GaeBullBing/Data/Json/

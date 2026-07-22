@@ -5,7 +5,6 @@ using GaeBullBing.Core.Towers;
 using GaeBullBing.Core.Data;
 using GaeBullBing.Presentation.Board;
 using UnityEngine;
-using UnityEngine.UI;
 using UnityEngine.Serialization;
 
 namespace GaeBullBing.Presentation.Monsters
@@ -28,8 +27,6 @@ namespace GaeBullBing.Presentation.Monsters
         [SerializeField] private Sprite crowFlyingBackSprite;
         [SerializeField] private Sprite bossFeatherSprite;
         [SerializeField] private MonsterDefinition[] monsterDefinitions;
-        [SerializeField] private GameObject overflowPanel;
-        [SerializeField] private Text overflowText;
 
         private readonly Dictionary<int, MonsterBoardView> views = new();
         private readonly Dictionary<int, MonsterState> states = new();
@@ -252,32 +249,25 @@ namespace GaeBullBing.Presentation.Monsters
             // Player owns slot zero; its layout hook is applied by GameController/player view.
         }
 
-        private void UpdateOverflow(int tileIndex, List<MonsterBoardView> occupants, int visibleCount)
+private void UpdateOverflow(int tileIndex, List<MonsterBoardView> occupants, int visibleCount)
         {
-            if (indicators.TryGetValue(tileIndex, out var old)) { indicators.Remove(tileIndex); Destroy(old.gameObject); }
+            if (indicators.TryGetValue(tileIndex, out var old))
+            {
+                indicators.Remove(tileIndex);
+                Destroy(old.gameObject);
+            }
             if (occupants.Count <= visibleCount) return;
-            var hidden = occupants.GetRange(visibleCount, occupants.Count - visibleCount);
-            var go = new GameObject($"Overflow {tileIndex}"); go.transform.SetParent(transform, false);
+
+            var go = new GameObject($"Overflow {tileIndex}");
+            go.transform.SetParent(transform, false);
             go.transform.position = boardView.GetWorldPosition(tileIndex) + new Vector3(0, .72f);
             var indicator = go.AddComponent<OverflowIndicatorView>();
-            indicator.Initialize(hidden.Count, show => ShowOverflow(show, hidden)); indicators[tileIndex] = indicator;
+            indicator.Initialize(occupants.Count - visibleCount);
+            indicators[tileIndex] = indicator;
         }
 
-        private void ShowOverflow(bool show, List<MonsterBoardView> hidden)
-        {
-            if (overflowPanel == null || overflowText == null) return;
-            overflowPanel.SetActive(show); if (!show) return;
-            var lines = new List<string>();
-            foreach (var view in hidden)
-                if (states.TryGetValue(view.InstanceId, out var state))
-                    lines.Add($"{GetMonsterName(state.DefinitionId)}  {Mathf.Max(0, Mathf.FloorToInt(state.CurrentHealth))}/{Mathf.FloorToInt(state.MaxHealth)}");
-            overflowText.text = string.Join("\n", lines);
-        }
 
-        private string GetMonsterName(string id)
-        {
-            foreach (var definition in monsterDefinitions) if (definition != null && definition.Id == id) return definition.DisplayName;
-            return id;
-        }
+
+
     }
 }

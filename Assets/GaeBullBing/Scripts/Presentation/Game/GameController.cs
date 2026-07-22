@@ -34,7 +34,6 @@ namespace GaeBullBing.Presentation.Game
         [SerializeField] private BoardCameraController cameraController;
         [SerializeField] private RadialActionMenu radialMenu;
         [SerializeField] private CornerActionMenu cornerActionMenu;
-        [SerializeField] private DiceTuningView diceTuningView;
         [SerializeField] private TowerPresenter towerPresenter;
         [SerializeField] private TowerDefinition[] towerDefinitions;
         [SerializeField] private TowerUpgradeDefinition[] towerUpgradeDefinitions;
@@ -869,13 +868,7 @@ namespace GaeBullBing.Presentation.Game
                 return;
             }
 
-            if (choices.Count == 1)
-            {
-                SelectTower(choices[0]);
-                return;
-            }
-
-            radialMenu.ShowChoices(choices, SelectTower);
+            SelectTower(choices[0]);
         }
 
         public void SelectTower(TowerDefinition definition)
@@ -964,19 +957,9 @@ namespace GaeBullBing.Presentation.Game
             yield return ResolveEnemyTurnRoutine();
         }
 
-        private bool ApplyDiceTuning(int diceIndex, int faceValue, int delta)
-        {
-            if (!Session.TryShiftDiceWeight(diceIndex, faceValue, delta))
-                return false;
-            diceHud.RefreshDiceFaces();
-            diceTuningComplete = true;
-            return true;
-        }
 
-        private void ApplyAllTowerDamageBoost()
-        {
-            diceTuningComplete = true;
-        }
+
+
 
         private IEnumerator ResolveEnemyTurnRoutine()
         {
@@ -1184,7 +1167,6 @@ namespace GaeBullBing.Presentation.Game
             diceHud.SetBusy();
             radialMenu.Hide();
             cornerActionMenu?.Hide();
-            diceTuningView?.Hide();
             HideTileInformation();
             StartCoroutine(FinishDefeatRoutine());
         }
