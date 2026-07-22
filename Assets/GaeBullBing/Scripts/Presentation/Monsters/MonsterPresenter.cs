@@ -84,7 +84,9 @@ namespace GaeBullBing.Presentation.Monsters
                 state.IsBoss ? flightBackSprite : null,
                 state.IsBoss);
             view.TileChanged += OnMonsterTileChanged;
-            view.UpdateHealth(state.CurrentHealth, state.MaxHealth);
+            
+            view.UpdateStatus(state);
+view.UpdateHealth(state.CurrentHealth, state.MaxHealth);
             views.Add(state.InstanceId, view);
             states.Add(state.InstanceId, state);
             displayedHealth[state.InstanceId] = state.CurrentHealth;
@@ -124,8 +126,13 @@ namespace GaeBullBing.Presentation.Monsters
 
         public IEnumerator Move(MonsterMoveResult result)
         {
+            
+
             if (!views.TryGetValue(result.InstanceId, out var view))
                 yield break;
+
+            if (states.TryGetValue(result.InstanceId, out var movingState))
+                view.UpdateStatus(movingState);
 
             if (result.IsBoss)
             {
@@ -179,6 +186,14 @@ namespace GaeBullBing.Presentation.Monsters
 
         public void RefreshLayout() => ReflowAll();
 
+public void RefreshStatuses()
+        {
+            foreach (var pair in states)
+                if (views.TryGetValue(pair.Key, out var view))
+                    view.UpdateStatus(pair.Value);
+        }
+
+
         private void OnMonsterTileChanged(int previousTileIndex, int currentTileIndex)
         {
             ReflowTile(previousTileIndex);
@@ -203,7 +218,9 @@ namespace GaeBullBing.Presentation.Monsters
                     ? Mathf.Max(0f, current - result.Damage)
                     : Mathf.Max(0f, state.CurrentHealth);
                 displayedHealth[result.TargetInstanceId] = health;
-                view.UpdateHealth(health, state.MaxHealth);
+                
+                view.UpdateStatus(state);
+view.UpdateHealth(health, state.MaxHealth);
             }
             if (result.Damage > 0) StartCoroutine(view.PlayHit());
         }

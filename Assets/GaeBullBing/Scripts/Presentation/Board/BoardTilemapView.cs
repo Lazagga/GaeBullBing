@@ -61,28 +61,34 @@ namespace GaeBullBing.Presentation.Board
             }
         }
 
-        public void RefreshTileEffects(BoardState board)
+public void RefreshTileEffects(BoardState board)
         {
             if (board == null) return;
             currentBoardState = board;
             var count = Mathf.Min(board.TileCount, BoardLayout.Cells.Count);
             for (var index = 0; index < count; index++)
-            {
-                var state = board.Tiles[index];
-                var tile = state.HasBossFeather && featherTile != null
-                    ? featherTile
-                    : state.FireTurnsRemaining > 0 && igniteTile != null
-                        ? igniteTile
-                        : state.IceTurnsRemaining > 0 && frozenTile != null
-                            ? frozenTile
-                            : normalTile;
-                Tilemap.SetTile(GetCellPosition(index), tile);
-                Tilemap.SetColor(GetCellPosition(index), Color.white);
-                ApplyPressTransform(index);
-            }
-
+                RefreshTileEffect(board, index);
             RefreshRendererSorting();
         }
+
+public void RefreshTileEffect(BoardState board, int tileIndex)
+        {
+            if (board == null || tileIndex < 0 || tileIndex >= board.TileCount ||
+                tileIndex >= BoardLayout.Cells.Count) return;
+            currentBoardState = board;
+            var state = board.Tiles[tileIndex];
+            var tile = state.HasBossFeather && featherTile != null
+                ? featherTile
+                : state.FireTurnsRemaining > 0 && igniteTile != null
+                    ? igniteTile
+                    : state.IceTurnsRemaining > 0 && frozenTile != null
+                        ? frozenTile
+                        : normalTile;
+            Tilemap.SetTile(GetCellPosition(tileIndex), tile);
+            Tilemap.SetColor(GetCellPosition(tileIndex), Color.white);
+            ApplyPressTransform(tileIndex);
+        }
+
 
         public Vector3Int GetCellPosition(int tileIndex)
         {

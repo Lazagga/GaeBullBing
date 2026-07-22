@@ -12,6 +12,7 @@ namespace GaeBullBing.Core.Towers
         Projectile,
         AreaTile,
         ChainLine,
+        ChainTile,
         RollingStone
     }
 

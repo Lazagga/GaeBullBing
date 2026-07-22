@@ -1,5 +1,7 @@
 using System.Collections;
 using System;
+
+using GaeBullBing.Core.Monsters;
 using GaeBullBing.Presentation.Board;
 using UnityEngine;
 
@@ -14,7 +16,11 @@ namespace GaeBullBing.Presentation.Monsters
         private BoardTilemapView boardView;
         private SpriteRenderer spriteRenderer;
         private SpriteRenderer healthBackgroundRenderer;
-        private SpriteRenderer healthFillRenderer;
+        
+        private MonsterStatusIndicatorView statusIndicator;
+        private Color monsterBaseColor = Color.white;
+        private int hitFlashCount;
+private SpriteRenderer healthFillRenderer;
         private BoardCharacterShadow shadow;
         private Transform healthFill;
         private Coroutine layoutRoutine;
@@ -64,7 +70,11 @@ namespace GaeBullBing.Presentation.Monsters
                 spriteRenderer != null ? spriteRenderer.sortingLayerID : 0);
             if (spriteRenderer != null && spriteRenderer.sprite != null)
                 healthBarY = Mathf.Max(.48f, spriteRenderer.sprite.bounds.max.y * spriteRenderer.transform.localScale.y + .08f);
+            
             CreateHealthBar();
+            statusIndicator = gameObject.AddComponent<MonsterStatusIndicatorView>();
+            statusIndicator.Initialize();
+            statusIndicator.SetLocalPosition(new Vector3(0f, healthBarY + .11f, 0f));
         }
 
         public void SetLayoutOffset(Vector3 offset)
@@ -102,7 +112,9 @@ namespace GaeBullBing.Presentation.Monsters
         {
             if (spriteRenderer != null) spriteRenderer.enabled = visible;
             if (healthBackgroundRenderer != null) healthBackgroundRenderer.enabled = visible;
-            if (healthFillRenderer != null) healthFillRenderer.enabled = visible;
+            
+            statusIndicator?.SetVisible(visible);
+if (healthFillRenderer != null) healthFillRenderer.enabled = visible;
             shadow?.SetVisible(visible);
         }
 
@@ -122,7 +134,9 @@ namespace GaeBullBing.Presentation.Monsters
                 CurrentTileIndex);
             if (spriteRenderer != null) spriteRenderer.sortingOrder = order;
             if (healthBackgroundRenderer != null) healthBackgroundRenderer.sortingOrder = order + 1;
-            if (healthFillRenderer != null) healthFillRenderer.sortingOrder = order + 2;
+            
+            statusIndicator?.SetSortingOrder(order + 3);
+if (healthFillRenderer != null) healthFillRenderer.sortingOrder = order + 2;
             shadow?.Set(shadowGroundPosition);
         }
 
@@ -132,6 +146,18 @@ namespace GaeBullBing.Presentation.Monsters
             healthFill.localScale = new Vector3(.46f * ratio, .055f, 1f);
             healthFill.localPosition = new Vector3(-.23f + .23f * ratio, healthBarY, 0f);
         }
+
+public void UpdateStatus(MonsterState state)
+        {
+            if (state == null) return;
+            statusIndicator?.Refresh(state);
+            monsterBaseColor = state.FrozenMovesRemaining > 0 || state.FreezeImmunityPending
+                ? new Color(.62f, .82f, 1f, 1f)
+                : Color.white;
+            if (spriteRenderer != null && hitFlashCount == 0)
+                spriteRenderer.color = monsterBaseColor;
+        }
+
 
         private void CreateHealthBar()
         {
@@ -290,14 +316,17 @@ namespace GaeBullBing.Presentation.Monsters
             spriteRenderer.flipX = line == 1 || line == 2;
         }
 
-        public IEnumerator PlayHit()
+public IEnumerator PlayHit()
         {
-            if (spriteRenderer == null) yield break;
-            var originalColor = spriteRenderer.color;
-            spriteRenderer.color = Color.white;
+            hitFlashCount++;
+            if (healthFillRenderer != null) healthFillRenderer.color = new Color(1f, .12f, .1f);
+            if (healthBackgroundRenderer != null) healthBackgroundRenderer.color = new Color(.45f, .02f, .02f, .95f);
             yield return new WaitForSeconds(0.12f);
-            if (spriteRenderer == null) yield break;
-            spriteRenderer.color = originalColor;
+            hitFlashCount = Mathf.Max(0, hitFlashCount - 1);
+            if (hitFlashCount > 0) yield break;
+            if (healthFillRenderer != null) healthFillRenderer.color = new Color(.2f, .9f, .25f);
+            if (healthBackgroundRenderer != null) healthBackgroundRenderer.color = new Color(.12f, .12f, .12f, .9f);
+            if (spriteRenderer != null) spriteRenderer.color = monsterBaseColor;
         }
     }
 }

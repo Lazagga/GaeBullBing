@@ -23,7 +23,9 @@ namespace GaeBullBing.Core.Monsters
         public bool TouchedFireThisMove { get; set; }
         public bool Shocked { get; set; }
         public int FrozenMovesRemaining { get; set; }
-        public int FreezeImmuneLine { get; set; } = -1;
+        public bool FreezeImmunityPending { get; set; }
+        public bool FreezeImmuneThisTurn { get; set; }
+        public bool CanReceiveFreeze => !FreezeImmunityPending && !FreezeImmuneThisTurn && !IsImmuneTo("freeze");
         public int StunnedMovesRemaining { get; set; }
         public bool KnockbackConsumed { get; set; }
         public bool KnockbackImmunityPending { get; set; }

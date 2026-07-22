@@ -15,11 +15,29 @@ namespace GaeBullBing.Core.Towers
 
         public IReadOnlyList<TowerAttackResult> ResolveAfterAttacks(GameState state, IReadOnlyList<TowerAttackResult> attacks)
         {
+            
             var extra = new List<TowerAttackResult>();
+            SpreadChainLineFieldsFromSnapshot(state, attacks, extra);
             foreach (var attack in attacks)
             {
-                // Presentation-only range markers must never trigger gameplay effects again.
-                if (attack.VisualKind == TowerAttackVisualKind.AreaTile) continue;
+                // Area markers carry every tile covered by an area attack. They do not deal
+                // damage again, but tile-field traits must use the same attacked tile set.
+                if (attack.VisualKind == TowerAttackVisualKind.AreaTile)
+                {
+                    var markerTowerTile = FindTowerTile(state, attack.TowerInstanceId);
+                    if (markerTowerTile != null && attack.TargetTileIndex >= 0 &&
+                        attack.TargetTileIndex < state.Board.TileCount)
+                    {
+                        var markerTower = markerTowerTile.Tower;
+                        if (HasEffect(markerTower, TowerEffectCatalog.TileBurn, "UPG_FIRE_T3_00"))
+                            PlaceFields(state, new[] { attack.TargetTileIndex }, true,
+                                attack.TowerInstanceId, extra);
+                        if (HasEffect(markerTower, TowerEffectCatalog.TileFreeze, "UPG_ICE_T2_01"))
+                            PlaceFields(state, new[] { attack.TargetTileIndex }, false,
+                                attack.TowerInstanceId, extra);
+                    }
+                    continue;
+                }
                 var towerTile = FindTowerTile(state, attack.TowerInstanceId); if (towerTile == null) continue;
                 var target = FindMonster(state, attack.TargetInstanceId);
                 var tower = towerTile.Tower;
@@ -28,7 +46,8 @@ namespace GaeBullBing.Core.Towers
                     : target != null ? target.CurrentTileIndex : -1;
                 if (attackTileIndex < 0 || attackTileIndex >= state.Board.TileCount) continue;
                 var attackedTiles = new HashSet<int> { attackTileIndex };
-                if (towerTile.Tower.DefinitionId == "TOW_04")
+                if (towerTile.Tower.DefinitionId == "TOW_04" &&
+                    attack.VisualKind != TowerAttackVisualKind.ChainLine)
                     SpreadTileField(state, attackTileIndex,
                         1 + Math.Max(0, (int)Math.Round(tower.GetEffectValue(TowerEffectCatalog.SpreadRangeAdd, 0f))),
                         attack.TowerInstanceId, extra);
@@ -56,19 +75,23 @@ namespace GaeBullBing.Core.Towers
                 {
                     var chainDistance = Math.Max(1, (int)Math.Round(
                         tower.GetEffectValue(TowerEffectCatalog.ChainTile, 3f)));
+                    extra.Add(new TowerAttackResult(attack.TowerInstanceId, -1, 0f, false,
+                        targetTileIndex: attackTileIndex, visualKind: TowerAttackVisualKind.ChainTile));
                     for (var distance = 1; distance <= chainDistance; distance++)
                     {
-                        var chainedTile = (attackTileIndex - distance + state.Board.TileCount) %
-                            state.Board.TileCount;
+                        var chainedTile = (attackTileIndex - distance + state.Board.TileCount) % state.Board.TileCount;
                         attackedTiles.Add(chainedTile);
-                    }
-                    AddAreaTileMarkers(attack.TowerInstanceId, attackedTiles, extra);
-                    for (var distance = 1; distance <= chainDistance; distance++)
-                    {
-                        var chainedTile = (attackTileIndex - distance + state.Board.TileCount) %
-                            state.Board.TileCount;
+                        
+                        if (tower.DefinitionId == "TOW_04")
+                            SpreadTileField(state, chainedTile,
+                                1 + Math.Max(0, (int)Math.Round(tower.GetEffectValue(TowerEffectCatalog.SpreadRangeAdd, 0f))),
+                                attack.TowerInstanceId, extra);
+                        var resultCountBeforeTile = extra.Count;
                         DamageTile(state, chainedTile, attack.Damage, attack.TowerInstanceId, extra,
-                            TowerAttackVisualKind.None);
+                            TowerAttackVisualKind.ChainTile);
+                        if (extra.Count == resultCountBeforeTile)
+                            extra.Add(new TowerAttackResult(attack.TowerInstanceId, -1, 0f, false,
+                                targetTileIndex: chainedTile, visualKind: TowerAttackVisualKind.ChainTile));
                     }
                 }
                 if (HasEffect(tower, TowerEffectCatalog.TileBurn, "UPG_FIRE_T3_00"))
@@ -181,7 +204,7 @@ namespace GaeBullBing.Core.Towers
             }
         }
 
-        private void SpreadTileField(
+private void SpreadTileField(
             GameState state,
             int sourceTileIndex,
             int radius,
@@ -192,7 +215,6 @@ namespace GaeBullBing.Core.Towers
             if (sourceTile.FireTurnsRemaining <= 0 && sourceTile.IceTurnsRemaining <= 0) return;
             var spreadTiles = new HashSet<int>();
             AddAreaTiles(state, sourceTileIndex, radius, spreadTiles);
-            spreadTiles.Remove(sourceTileIndex);
             PlaceFields(state, spreadTiles, sourceTile.FireTurnsRemaining > 0,
                 sourceTowerInstanceId, results);
         }
@@ -239,7 +261,7 @@ namespace GaeBullBing.Core.Towers
             if (HasEffect(tower, "double_burn", "UPG_FIRE_T2_04"))
                 target.BurnStacks *= Math.Max(1, (int)Math.Round(
                     1f + tower.GetEffectValue(TowerEffectCatalog.DoubleBurn, 1f)));
-            if (HasEffect(tower, "freeze", "UPG_ICE_T2_00") && target.FreezeImmuneLine < 0)
+            if (HasEffect(tower, "freeze", "UPG_ICE_T2_00") && target.CanReceiveFreeze)
                 target.FrozenMovesRemaining = Math.Max(target.FrozenMovesRemaining,
                     Math.Max(1, (int)Math.Round(tower.GetEffectValue(TowerEffectCatalog.Freeze, 1f))));
             if (HasEffect(tower, "shock", "UPG_ELECTRIC_T3_02")) target.Shocked = true;
@@ -247,7 +269,7 @@ namespace GaeBullBing.Core.Towers
         private static void DamageArea(GameState s,int center,float damage,int tower,ICollection<TowerAttackResult> r)
         { foreach(var m in s.Monsters) if(Math.Min(Math.Abs(m.CurrentTileIndex-center),36-Math.Abs(m.CurrentTileIndex-center))<=1) ApplyDamage(s,m,damage,tower,r,TowerAttackVisualKind.None); }
         private static void SpreadStatuses(GameState s, MonsterState source, int radius)
-        { foreach(var m in s.Monsters) if(m.InstanceId!=source.InstanceId && Math.Min(Math.Abs(m.CurrentTileIndex-source.CurrentTileIndex),36-Math.Abs(m.CurrentTileIndex-source.CurrentTileIndex))<=radius) { m.BurnStacks=Math.Max(m.BurnStacks,source.BurnStacks); m.Shocked|=source.Shocked; if(source.FrozenMovesRemaining>0 && m.FreezeImmuneLine<0)m.FrozenMovesRemaining=source.FrozenMovesRemaining; } }
+        { foreach(var m in s.Monsters) if(m.InstanceId!=source.InstanceId && Math.Min(Math.Abs(m.CurrentTileIndex-source.CurrentTileIndex),36-Math.Abs(m.CurrentTileIndex-source.CurrentTileIndex))<=radius) { m.BurnStacks=Math.Max(m.BurnStacks,source.BurnStacks); m.Shocked|=source.Shocked; if(source.FrozenMovesRemaining>0 && m.CanReceiveFreeze)m.FrozenMovesRemaining=source.FrozenMovesRemaining; } }
         private static MonsterState FindMonster(GameState s,int id)=>s.Monsters.Find(m=>m.InstanceId==id);
         private static Board.TileState FindTowerTile(GameState s,int id)=>s.Board.Tiles.Find(t=>t.HasTower&&t.Tower.InstanceId==id);
         private static void DamageTile(GameState s,int tile,float damage,int tower,ICollection<TowerAttackResult> r,
@@ -365,5 +387,39 @@ namespace GaeBullBing.Core.Towers
             ApplyDamage(state, monster, tile.Tower.LastResolvedDamage, tile.Tower.InstanceId, results,
                 TowerAttackVisualKind.Projectile);
         }
-    }
+    
+
+private void SpreadChainLineFieldsFromSnapshot(
+            GameState state,
+            IReadOnlyList<TowerAttackResult> attacks,
+            ICollection<TowerAttackResult> results)
+        {
+            var processedTowers = new HashSet<int>();
+            foreach (var attack in attacks)
+            {
+                if (attack.VisualKind != TowerAttackVisualKind.ChainLine ||
+                    !processedTowers.Add(attack.TowerInstanceId)) continue;
+                var towerTile = FindTowerTile(state, attack.TowerInstanceId);
+                if (towerTile == null || towerTile.Tower.DefinitionId != "TOW_04") continue;
+
+                var line = MonsterService.GetLine(towerTile.Index);
+                var sources = new List<KeyValuePair<int, bool>>();
+                foreach (var tile in state.Board.Tiles)
+                {
+                    if (MonsterService.GetLine(tile.Index) != line) continue;
+                    if (tile.FireTurnsRemaining > 0) sources.Add(new KeyValuePair<int, bool>(tile.Index, true));
+                    else if (tile.IceTurnsRemaining > 0) sources.Add(new KeyValuePair<int, bool>(tile.Index, false));
+                }
+
+                var radius = 1 + Math.Max(0, (int)Math.Round(
+                    towerTile.Tower.GetEffectValue(TowerEffectCatalog.SpreadRangeAdd, 0f)));
+                foreach (var source in sources)
+                {
+                    var spreadTiles = new HashSet<int>();
+                    AddAreaTiles(state, source.Key, radius, spreadTiles);
+                    PlaceFields(state, spreadTiles, source.Value, attack.TowerInstanceId, results);
+                }
+            }
+        }
+}
 }

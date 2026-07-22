@@ -62,7 +62,17 @@ namespace GaeBullBing.Presentation.Towers
                 yield break;
             }
 
-            if (result.VisualKind == TowerAttackVisualKind.AreaTile && result.TargetTileIndex >= 0)
+            if (result.VisualKind == TowerAttackVisualKind.ChainTile && result.TargetTileIndex >= 0)
+            {
+                var chainSprite = GetAreaTileSprite(definitionId);
+                if (chainSprite == null) onImpact?.Invoke();
+                else yield return PlayTileIllumination(chainSprite, new[] { result.TargetTileIndex },
+                    $"{definitionId} Chain Tile", onImpact, .08f);
+                yield break;
+            }
+
+            
+if (result.VisualKind == TowerAttackVisualKind.AreaTile && result.TargetTileIndex >= 0)
             {
                 yield return PlayAreaTiles(state, result.TowerInstanceId,
                     new[] { result.TargetTileIndex }, onImpact);
@@ -171,9 +181,12 @@ namespace GaeBullBing.Presentation.Towers
             Sprite sprite,
             IReadOnlyList<int> tileIndices,
             string objectName,
-            Action onImpact = null)
+            Action onImpact = null,
+            float duration = -1f)
         {
-            var renderers = new List<SpriteRenderer>();
+            
+            var effectDuration = duration > 0f ? duration : chainLineDuration;
+var renderers = new List<SpriteRenderer>();
             var uniqueTiles = new HashSet<int>();
             for (var index = 0; index < tileIndices.Count; index++)
             {
@@ -193,9 +206,9 @@ namespace GaeBullBing.Presentation.Towers
             }
 
             var impactInvoked = false;
-            for (var elapsed = 0f; elapsed < chainLineDuration; elapsed += Time.deltaTime)
+            for (var elapsed = 0f; elapsed < effectDuration; elapsed += Time.deltaTime)
             {
-                var progress = Mathf.Clamp01(elapsed / chainLineDuration);
+                var progress = Mathf.Clamp01(elapsed / effectDuration);
                 if (!impactInvoked && progress >= .5f)
                 {
                     impactInvoked = true;

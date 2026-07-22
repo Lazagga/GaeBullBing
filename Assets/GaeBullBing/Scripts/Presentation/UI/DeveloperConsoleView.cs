@@ -15,6 +15,7 @@ namespace GaeBullBing.Presentation.UI
         [SerializeField] private Button submitButton;
         [SerializeField] private GameController gameController;
         private bool submitPending;
+        private ScrollRect outputScroll;
 
         public bool IsOpen => panel != null && panel.activeSelf;
         public bool GameplayInputEnabled => gameController != null && gameController.AcceptsGameplayInput;
@@ -29,7 +30,39 @@ namespace GaeBullBing.Presentation.UI
             input.customCaretColor = true; input.caretColor = Color.white;
             input.selectionColor = new Color(.2f,.45f,.8f,.65f);
             if (input.placeholder is Text placeholder) { placeholder.color = new Color(.7f,.7f,.7f,1f); placeholder.fontSize = 19; }
+            ConfigureOutputScroll();
         }
+
+        private void ConfigureOutputScroll()
+        {
+            if (panel == null || output == null) return;
+            var viewport = panel.transform.Find("Console Output Viewport") as RectTransform;
+            
+            if (viewport == null) return;
+            viewport.localScale = Vector3.one;
+            output.rectTransform.SetParent(viewport, false);
+            output.rectTransform.anchorMin = new Vector2(0f, 1f);
+            output.rectTransform.anchorMax = new Vector2(1f, 1f);
+            output.rectTransform.pivot = new Vector2(.5f, 1f);
+            output.rectTransform.anchoredPosition = Vector2.zero;
+            output.rectTransform.sizeDelta = Vector2.zero;
+            output.horizontalOverflow = HorizontalWrapMode.Wrap;
+            output.verticalOverflow = VerticalWrapMode.Overflow;
+            var fitter = output.GetComponent<ContentSizeFitter>();
+            if (fitter == null) fitter = output.gameObject.AddComponent<ContentSizeFitter>();
+            fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            outputScroll = viewport.GetComponent<ScrollRect>();
+            if (outputScroll == null) outputScroll = viewport.gameObject.AddComponent<ScrollRect>();
+            outputScroll.viewport = viewport;
+            outputScroll.content = output.rectTransform;
+            outputScroll.horizontal = false;
+            outputScroll.vertical = true;
+            outputScroll.movementType = ScrollRect.MovementType.Clamped;
+            outputScroll.inertia = true;
+            outputScroll.scrollSensitivity = 28f;
+        }
+
 
         private void Update()
         {
@@ -69,7 +102,15 @@ namespace GaeBullBing.Presentation.UI
 
         private void Execute(string command)
         {
+            
             var parts = command.Split(new[] {' '}, StringSplitOptions.RemoveEmptyEntries);
+            if (gameController.HasPendingConsoleUpgrade && parts.Length == 1 &&
+                int.TryParse(parts[0], out var upgradeChoice))
+            {
+                gameController.ApplyConsoleUpgradeChoice(upgradeChoice, out var upgradeMessage);
+                Write(upgradeMessage);
+                return;
+            }
             if (parts.Length == 1 && parts[0].Equals("win", StringComparison.OrdinalIgnoreCase))
             {
                 gameController.FinishGameFromConsole(true, out var message);
@@ -111,10 +152,10 @@ namespace GaeBullBing.Presentation.UI
                 Write(nextMessage);
                 return;
             }
-            if (parts.Length == 3 && parts[0].Equals("build", StringComparison.OrdinalIgnoreCase) &&
-                int.TryParse(parts[1], out var tileIndex) && int.TryParse(parts[2], out var tier))
+            if (parts.Length == 2 && parts[0].Equals("build", StringComparison.OrdinalIgnoreCase) &&
+                int.TryParse(parts[1], out var tileIndex))
             {
-                gameController.BuildTowerFromConsole(tileIndex, tier, out var message);
+                gameController.BuildTowerFromConsole(tileIndex, out var message);
                 Write(message);
                 return;
             }
@@ -126,11 +167,21 @@ namespace GaeBullBing.Presentation.UI
                 return;
             }
             if (parts.Length == 1 && parts[0].Equals("help", StringComparison.OrdinalIgnoreCase))
-            { Write("win | lose | reset | speed 1/2/4/8 | dice n m | spawn 몬스터이름 [타일번호] | build 타일번호 티어 | effect 타일번호 frozen/ignite"); return; }
+            { Write("win | lose | reset | speed 1/2/4/8 | dice n m | spawn 몬스터이름 [타일번호] | build 타일번호 | effect 타일번호 frozen/ignite"); return; }
             Write("알 수 없는 명령어입니다. help를 입력하세요.");
         }
 
         private void Write(string message)
-        { output.text = string.IsNullOrEmpty(output.text) ? message : output.text + "\n" + message; }
+        {
+            output.text = string.IsNullOrEmpty(output.text) ? message : output.text + "\n" + message;
+            if (isActiveAndEnabled) StartCoroutine(ScrollOutputToBottom());
+        }
+
+        private IEnumerator ScrollOutputToBottom()
+        {
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+            if (outputScroll != null) outputScroll.verticalNormalizedPosition = 0f;
+        }
     }
 }

@@ -62,7 +62,11 @@ namespace GaeBullBing.Presentation.Game
         private const int MaxTowerElementDamageBonus = 30;
         private static bool startImmediatelyAfterReload;
         private static bool fadeTitleAfterReload;
-        private bool finishRoutineStarted;
+        
+        private int pendingConsoleUpgradeTile = -1;
+        private readonly List<TowerUpgradeDefinition> pendingConsoleUpgrades = new();
+        public bool HasPendingConsoleUpgrade => pendingConsoleUpgradeTile >= 0 && pendingConsoleUpgrades.Count > 0;
+private bool finishRoutineStarted;
 
         public GameState State { get; private set; }
         public GameSession Session { get; private set; }
@@ -136,62 +140,107 @@ namespace GaeBullBing.Presentation.Game
             return true;
         }
 
-        public bool BuildTowerFromConsole(int tileIndex, int tier, out string message)
+public bool BuildTowerFromConsole(int tileIndex, out string message)
         {
+            pendingConsoleUpgradeTile = -1;
+            pendingConsoleUpgrades.Clear();
             if (tileIndex < 0 || tileIndex >= State.Board.TileCount)
             {
                 message = $"타일 번호는 0~{State.Board.TileCount - 1} 범위여야 합니다.";
                 return false;
             }
 
-            if (tier < 1 || tier > 3)
-            {
-                message = "타워 티어는 1~3 범위여야 합니다.";
-                return false;
-            }
-
             var tile = State.Board.Tiles[tileIndex];
-            if (!tile.CanBuildTower)
+            if (!tile.HasTower)
             {
-                message = $"{tileIndex}번 타일에는 지정된 타워가 없습니다.";
-                return false;
-            }
-
-            var definition = FindTowerDefinition(tile.BuildTowerDefinitionId);
-            if (definition == null)
-            {
-                message = $"타워 데이터를 찾을 수 없습니다: {tile.BuildTowerDefinitionId}";
-                return false;
-            }
-
-            var upgrades = new List<TowerUpgradeDefinition>();
-            for (var upgradeTier = 2; upgradeTier <= tier; upgradeTier++)
-            {
-                var upgrade = FindConsoleUpgrade(definition.Element, upgradeTier);
-                if (upgrade == null)
+                if (!tile.CanBuildTower)
                 {
-                    message = $"{definition.Element} {upgradeTier}티어의 0번 강화를 찾을 수 없습니다.";
+                    message = $"{tileIndex}번 타일에는 지정된 타워가 없습니다.";
                     return false;
                 }
-                upgrades.Add(upgrade);
+                var definition = FindTowerDefinition(tile.BuildTowerDefinitionId);
+                if (definition == null)
+                {
+                    message = $"타워 데이터를 찾을 수 없습니다: {tile.BuildTowerDefinitionId}";
+                    return false;
+                }
+                var previousPhase = State.CurrentPhase;
+                try
+                {
+                    Session.BuildTower(tileIndex, definition);
+                    towerPresenter.SetTower(tileIndex, definition, 1);
+                    message = $"{tileIndex}번 타일에 {definition.DisplayName} 1티어를 설치했습니다.";
+                    return true;
+                }
+                finally { State.CurrentPhase = previousPhase; }
             }
 
+            var towerDefinition = FindTowerDefinition(tile.Tower.DefinitionId);
+            if (towerDefinition == null)
+            {
+                message = $"타워 데이터를 찾을 수 없습니다: {tile.Tower.DefinitionId}";
+                return false;
+            }
+            foreach (var upgrade in towerUpgradeDefinitions)
+                if (upgrade != null && upgrade.Element == towerDefinition.Element &&
+                    upgrade.Tier == tile.Tower.UpgradeTier + 1 &&
+                    !tile.Tower.AppliedUpgradeIds.Contains(upgrade.Id))
+                    pendingConsoleUpgrades.Add(upgrade);
+
+            if (pendingConsoleUpgrades.Count == 0)
+            {
+                if (tile.Tower.UpgradeTier >= 3)
+                {
+                    Session.AddPermanentTowerDamageFlatBonus(towerDefinition.Element, MaxTowerElementDamageBonus);
+                    message = $"{towerDefinition.DisplayName}은 이미 풀 강화 상태입니다. {towerDefinition.Element} 타워 공격력 +30을 적용했습니다.";
+                    return true;
+                }
+                message = $"{towerDefinition.DisplayName}에 적용 가능한 다음 티어 강화가 없습니다.";
+                return false;
+            }
+
+            pendingConsoleUpgradeTile = tileIndex;
+            var builder = new StringBuilder("적용할 강화를 숫자로 입력하세요.");
+            for (var index = 0; index < pendingConsoleUpgrades.Count; index++)
+                builder.Append($"\n{index} : {pendingConsoleUpgrades[index].Description}");
+            message = builder.ToString();
+            return true;
+        }
+
+public bool ApplyConsoleUpgradeChoice(int choiceIndex, out string message)
+        {
+            if (!HasPendingConsoleUpgrade)
+            {
+                message = "선택 대기 중인 타워 강화가 없습니다.";
+                return false;
+            }
+            if (choiceIndex < 0 || choiceIndex >= pendingConsoleUpgrades.Count)
+            {
+                message = $"강화 번호는 0~{pendingConsoleUpgrades.Count - 1} 범위여야 합니다.";
+                return false;
+            }
+
+            var tileIndex = pendingConsoleUpgradeTile;
+            var upgrade = pendingConsoleUpgrades[choiceIndex];
+            var tile = State.Board.Tiles[tileIndex];
+            var definition = FindTowerDefinition(tile.Tower.DefinitionId);
             var previousPhase = State.CurrentPhase;
             try
             {
-                tile.Tower = null;
-                Session.BuildTower(tileIndex, definition);
-                foreach (var upgrade in upgrades)
-                    Session.UpgradeTower(tileIndex, upgrade);
-                towerPresenter.SetTower(tileIndex, definition, tier);
-                message = $"{tileIndex}번 타일에 {definition.DisplayName} {tier}티어 설치 완료";
+                Session.UpgradeTower(tileIndex, upgrade);
+                if (definition != null)
+                    towerPresenter.SetTower(tileIndex, definition, tile.Tower.UpgradeTier);
+                message = $"{tileIndex}번 타워에 {upgrade.Description} 강화를 적용했습니다.";
                 return true;
             }
             finally
             {
                 State.CurrentPhase = previousPhase;
+                pendingConsoleUpgradeTile = -1;
+                pendingConsoleUpgrades.Clear();
             }
         }
+
 
         public bool SetTileEffectFromConsole(int tileIndex, string effectName, out string message)
         {
@@ -1047,7 +1096,6 @@ namespace GaeBullBing.Presentation.Game
             }
 
             var attackResults = Session.ResolveTowerCombat(towerDefinitions, towerUpgradeDefinitions);
-            boardView.RefreshTileEffects(State.Board);
             var illuminatedLineTowerIds = new HashSet<int>();
             var consumedStoneAttackResults = new HashSet<int>();
             for (var attackIndex = 0; attackIndex < attackResults.Count; attackIndex++)
@@ -1081,7 +1129,26 @@ namespace GaeBullBing.Presentation.Game
                     yield return PlayAttackResultsTogether(chainResults, illuminatedLineTowerIds);
                     continue;
                 }
-                if (attackResult.VisualKind != TowerAttackVisualKind.AreaTile)
+                if (attackResult.VisualKind == TowerAttackVisualKind.ChainTile)
+                {
+                    var chainTowerId = attackResult.TowerInstanceId;
+                    var chainTileIndex = attackResult.TargetTileIndex;
+                    var chainTileResults = new List<TowerAttackResult>();
+                    while (attackIndex < attackResults.Count &&
+                           attackResults[attackIndex].VisualKind == TowerAttackVisualKind.ChainTile &&
+                           attackResults[attackIndex].TowerInstanceId == chainTowerId &&
+                           attackResults[attackIndex].TargetTileIndex == chainTileIndex)
+                    {
+                        chainTileResults.Add(attackResults[attackIndex]);
+                        attackIndex++;
+                    }
+                    attackIndex--;
+                    yield return PlayAttackResultsTogether(chainTileResults, illuminatedLineTowerIds);
+                    continue;
+                }
+
+                
+if (attackResult.VisualKind != TowerAttackVisualKind.AreaTile)
                 {
                     yield return PlayAttackResult(attackResult, illuminatedLineTowerIds);
                     continue;
@@ -1189,7 +1256,7 @@ namespace GaeBullBing.Presentation.Game
             isBusy = false;
         }
 
-        private IEnumerator PlayAttackResult(
+private IEnumerator PlayAttackResult(
             TowerAttackResult result,
             ISet<int> illuminatedLineTowerIds)
         {
@@ -1199,13 +1266,17 @@ namespace GaeBullBing.Presentation.Game
                 {
                     impactApplied = true;
                     monsterPresenter.ApplyAttackAtImpact(result);
+                    RefreshAttackTileEffects(result);
                 });
             if (!impactApplied)
+            {
                 monsterPresenter.ApplyAttackAtImpact(result);
+                RefreshAttackTileEffects(result);
+            }
             yield return monsterPresenter.CompleteAttack(result);
         }
 
-        private IEnumerator PlayAttackResultsTogether(
+private IEnumerator PlayAttackResultsTogether(
             IReadOnlyList<TowerAttackResult> results,
             ISet<int> illuminatedLineTowerIds)
         {
@@ -1217,12 +1288,43 @@ namespace GaeBullBing.Presentation.Game
                     impactApplied = true;
                     foreach (var result in results)
                         monsterPresenter.ApplyAttackAtImpact(result);
+                    RefreshAttackTileEffects(results[0]);
                 });
             if (!impactApplied)
+            {
                 foreach (var result in results)
                     monsterPresenter.ApplyAttackAtImpact(result);
+                RefreshAttackTileEffects(results[0]);
+            }
             foreach (var result in results)
                 yield return monsterPresenter.CompleteAttack(result);
         }
-    }
+    
+
+private void RefreshAttackTileEffects(TowerAttackResult result)
+        {
+            if (boardView == null || State?.Board == null) return;
+            if (result.VisualKind == TowerAttackVisualKind.ChainLine)
+            {
+                boardView.RefreshTileEffects(State.Board);
+                return;
+            }
+            if (result.TargetTileIndex < 0) return;
+
+            var radius = 0;
+            foreach (var tile in State.Board.Tiles)
+                if (tile.HasTower && tile.Tower.InstanceId == result.TowerInstanceId &&
+                    tile.Tower.DefinitionId == "TOW_04")
+                {
+                    radius = 1 + Mathf.Max(0, Mathf.RoundToInt(
+                        tile.Tower.GetEffectValue(TowerEffectCatalog.SpreadRangeAdd, 0f)));
+                    break;
+                }
+            for (var offset = -radius; offset <= radius; offset++)
+            {
+                var tileIndex = (result.TargetTileIndex + offset + State.Board.TileCount) % State.Board.TileCount;
+                boardView.RefreshTileEffect(State.Board, tileIndex);
+            }
+        }
+}
 }

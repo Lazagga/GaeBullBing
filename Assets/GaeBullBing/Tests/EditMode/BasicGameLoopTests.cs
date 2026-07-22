@@ -621,83 +621,119 @@ namespace GaeBullBing.Tests.EditMode
             Assert.That(fourTilesAway.CurrentHealth, Is.EqualTo(100f));
         }
 
-        [Test]
-        public void ChainTile_TransfersThreeTilesBackwardFromAttackedTile()
+[Test]
+        public void ElectricAttack_RefreshesSourceFieldAndSpreadsToBothSides()
         {
             var state = new GameState();
             new BoardService().Initialize(state.Board);
-            var tower = new GaeBullBing.Core.Towers.TowerState
+            var tower = new GaeBullBing.Core.Towers.TowerState { InstanceId = 1, DefinitionId = "TOW_04" };
+            state.Board.Tiles[8].Tower = tower;
+            state.Board.Tiles[4].FireTurnsRemaining = 1;
+            new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(state,
+                new[] { new GaeBullBing.Core.Towers.TowerAttackResult(1, -1, 10f, false, targetTileIndex: 4) });
+            Assert.That(state.Board.Tiles[3].FireTurnsRemaining, Is.EqualTo(TileState.OneTurnEffectDuration));
+            Assert.That(state.Board.Tiles[4].FireTurnsRemaining, Is.EqualTo(TileState.OneTurnEffectDuration));
+            Assert.That(state.Board.Tiles[5].FireTurnsRemaining, Is.EqualTo(TileState.OneTurnEffectDuration));
+        }
+
+[Test]
+        public void ChainTile_FieldTransferCascadesAtEachSequentialTile()
+        {
+            var state = new GameState();
+            new BoardService().Initialize(state.Board);
+            var tower = new GaeBullBing.Core.Towers.TowerState { InstanceId = 1, DefinitionId = "TOW_04" };
+            tower.AppliedEffectIds.Add("chain_tile");
+            tower.EffectValues["chain_tile"] = 3f;
+            state.Board.Tiles[8].Tower = tower;
+            state.Board.Tiles[4].FireTurnsRemaining = TileState.OneTurnEffectDuration;
+            new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(state,
+                new[] { new GaeBullBing.Core.Towers.TowerAttackResult(1, -1, 10f, false, targetTileIndex: 4) });
+            for (var tileIndex = 0; tileIndex <= 5; tileIndex++)
+                Assert.That(state.Board.Tiles[tileIndex].FireTurnsRemaining, Is.GreaterThan(0), $"tile {tileIndex}");
+            Assert.That(state.Board.Tiles[35].FireTurnsRemaining, Is.Zero);
+        }
+
+[Test]
+        public void ChainLine_FieldTransferUsesInitialSourcesOnlyOnce()
+        {
+            var state = new GameState();
+            new BoardService().Initialize(state.Board);
+            var tower = new GaeBullBing.Core.Towers.TowerState { InstanceId = 1, DefinitionId = "TOW_04" };
+            tower.AppliedEffectIds.Add("chain_line");
+            state.Board.Tiles[5].Tower = tower;
+            state.Board.Tiles[1].FireTurnsRemaining = TileState.OneTurnEffectDuration;
+            state.Board.Tiles[4].FireTurnsRemaining = TileState.OneTurnEffectDuration;
+            var attacks = new[]
             {
-                InstanceId = 1,
-                DefinitionId = "TOW_04"
+                new GaeBullBing.Core.Towers.TowerAttackResult(1, -1, 10f, false, targetTileIndex: 1, visualKind: GaeBullBing.Core.Towers.TowerAttackVisualKind.ChainLine),
+                new GaeBullBing.Core.Towers.TowerAttackResult(1, -1, 10f, false, targetTileIndex: 4, visualKind: GaeBullBing.Core.Towers.TowerAttackVisualKind.ChainLine)
             };
+            new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(state, attacks);
+            for (var tileIndex = 0; tileIndex <= 5; tileIndex++)
+                Assert.That(state.Board.Tiles[tileIndex].FireTurnsRemaining, Is.GreaterThan(0), $"tile {tileIndex}");
+            Assert.That(state.Board.Tiles[6].FireTurnsRemaining, Is.Zero);
+            Assert.That(state.Board.Tiles[35].FireTurnsRemaining, Is.Zero);
+        }
+
+
+
+
+[Test]
+        public void ChainTile_TransfersThreeTilesTowardLowerTileIndices()
+        {
+            var state = new GameState();
+            new BoardService().Initialize(state.Board);
+            var tower = new GaeBullBing.Core.Towers.TowerState { InstanceId = 1, DefinitionId = "TOW_04" };
             tower.AppliedEffectIds.Add("chain_tile");
             state.Board.Tiles[5].Tower = tower;
-
             var target = CreateMonster(1, 10, 100, 10);
             var firstChain = CreateMonster(2, 9, 100, 9);
             var secondChain = CreateMonster(3, 8, 100, 8);
             var thirdChain = CreateMonster(4, 7, 100, 7);
-            var forwardTile = CreateMonster(5, 11, 100, 11);
-            var towerBasedTile = CreateMonster(6, 4, 100, 4);
-            state.Monsters.Add(target);
-            state.Monsters.Add(firstChain);
-            state.Monsters.Add(secondChain);
-            state.Monsters.Add(thirdChain);
-            state.Monsters.Add(forwardTile);
-            state.Monsters.Add(towerBasedTile);
+            var oppositeTile = CreateMonster(5, 11, 100, 11);
+            state.Monsters.Add(target); state.Monsters.Add(firstChain); state.Monsters.Add(secondChain);
+            state.Monsters.Add(thirdChain); state.Monsters.Add(oppositeTile);
 
-            var results = new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(
-                state,
-                new[]
-                {
-                    new GaeBullBing.Core.Towers.TowerAttackResult(
-                        1, target.InstanceId, 10f, false, targetTileIndex: 10)
-                });
+            var results = new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(state,
+                new[] { new GaeBullBing.Core.Towers.TowerAttackResult(1, target.InstanceId, 10f, false, targetTileIndex: 10) });
 
             Assert.That(firstChain.CurrentHealth, Is.EqualTo(90f));
             Assert.That(secondChain.CurrentHealth, Is.EqualTo(90f));
             Assert.That(thirdChain.CurrentHealth, Is.EqualTo(90f));
-            Assert.That(forwardTile.CurrentHealth, Is.EqualTo(100f));
-            Assert.That(towerBasedTile.CurrentHealth, Is.EqualTo(100f));
-            var hasThirdChainMarker = false;
+            
+            var chainTileCount = 0;
+            var areaMarkerCount = 0;
             foreach (var result in results)
-                if (result.VisualKind == GaeBullBing.Core.Towers.TowerAttackVisualKind.AreaTile &&
-                    result.TargetTileIndex == 7)
-                    hasThirdChainMarker = true;
-            Assert.That(hasThirdChainMarker, Is.True);
+            {
+                if (result.VisualKind == GaeBullBing.Core.Towers.TowerAttackVisualKind.ChainTile)
+                    chainTileCount++;
+                if (result.VisualKind == GaeBullBing.Core.Towers.TowerAttackVisualKind.AreaTile)
+                    areaMarkerCount++;
+            }
+            Assert.That(chainTileCount, Is.EqualTo(4));
+            Assert.That(areaMarkerCount, Is.Zero);
+Assert.That(oppositeTile.CurrentHealth, Is.EqualTo(100f));
+            Assert.That(results, Has.Some.Matches<GaeBullBing.Core.Towers.TowerAttackResult>(result =>
+                result.VisualKind == GaeBullBing.Core.Towers.TowerAttackVisualKind.ChainTile &&
+                result.TargetTileIndex == 7));
         }
 
-        [Test]
+[Test]
         public void ChainTile_AppliesShockToEveryChainedMonster()
         {
             var state = new GameState();
             new BoardService().Initialize(state.Board);
-            var tower = new GaeBullBing.Core.Towers.TowerState
-            {
-                InstanceId = 1,
-                DefinitionId = "TOW_04"
-            };
-            tower.AppliedEffectIds.Add("chain_tile");
-            tower.AppliedEffectIds.Add("shock");
+            var tower = new GaeBullBing.Core.Towers.TowerState { InstanceId = 1, DefinitionId = "TOW_04" };
+            tower.AppliedEffectIds.Add("chain_tile"); tower.AppliedEffectIds.Add("shock");
             state.Board.Tiles[5].Tower = tower;
-
             var target = CreateMonster(1, 10, 100, 10);
             var firstChain = CreateMonster(2, 9, 100, 9);
             var secondChain = CreateMonster(3, 8, 100, 8);
             var thirdChain = CreateMonster(4, 7, 100, 7);
-            state.Monsters.Add(target);
-            state.Monsters.Add(firstChain);
-            state.Monsters.Add(secondChain);
-            state.Monsters.Add(thirdChain);
+            state.Monsters.Add(target); state.Monsters.Add(firstChain); state.Monsters.Add(secondChain); state.Monsters.Add(thirdChain);
 
-            new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(
-                state,
-                new[]
-                {
-                    new GaeBullBing.Core.Towers.TowerAttackResult(
-                        1, target.InstanceId, 10f, false, targetTileIndex: 10)
-                });
+            new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(state,
+                new[] { new GaeBullBing.Core.Towers.TowerAttackResult(1, target.InstanceId, 10f, false, targetTileIndex: 10) });
 
             Assert.That(target.Shocked, Is.True);
             Assert.That(firstChain.Shocked, Is.True);
@@ -831,6 +867,27 @@ namespace GaeBullBing.Tests.EditMode
             Assert.That(new[] { results[0].TargetTileIndex, results[1].TargetTileIndex, results[2].TargetTileIndex },
                 Is.EquivalentTo(new[] { 5, 6, 7 }));
         }
+
+[Test]
+        public void AreaAttack_WithTileBurn_PlacesFieldOnEveryAttackedTile()
+        {
+            var state = CreateCombatState();
+            var tower = state.Board.Tiles[5].Tower;
+            tower.AppliedEffectIds.Add("tile_burn");
+            var markers = new[]
+            {
+                new GaeBullBing.Core.Towers.TowerAttackResult(1, -1, 0, false, targetTileIndex: 5, visualKind: GaeBullBing.Core.Towers.TowerAttackVisualKind.AreaTile),
+                new GaeBullBing.Core.Towers.TowerAttackResult(1, -1, 0, false, targetTileIndex: 6, visualKind: GaeBullBing.Core.Towers.TowerAttackVisualKind.AreaTile),
+                new GaeBullBing.Core.Towers.TowerAttackResult(1, -1, 0, false, targetTileIndex: 7, visualKind: GaeBullBing.Core.Towers.TowerAttackVisualKind.AreaTile)
+            };
+
+            new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(state, markers);
+
+            Assert.That(state.Board.Tiles[5].FireTurnsRemaining, Is.GreaterThan(0));
+            Assert.That(state.Board.Tiles[6].FireTurnsRemaining, Is.GreaterThan(0));
+            Assert.That(state.Board.Tiles[7].FireTurnsRemaining, Is.GreaterThan(0));
+        }
+
 
         [Test]
         public void BurnExplode_TriggersAfterAttackRaisesBurnToTen()
@@ -1049,6 +1106,40 @@ namespace GaeBullBing.Tests.EditMode
             Assert.That(boss.CurrentTileIndex, Is.EqualTo(0));
             Assert.That(boss.FrozenMovesRemaining, Is.EqualTo(0));
         }
+
+[Test]
+        public void Freeze_BlocksOneMoveThenGrantsOneMovingTurnOfImmunity()
+        {
+            var state = new GameState();
+            new BoardService().Initialize(state.Board);
+            var monster = new GaeBullBing.Core.Monsters.MonsterState
+            {
+                InstanceId = 1,
+                CurrentTileIndex = 0,
+                CurrentHealth = 100,
+                MaxHealth = 100,
+                MoveDistance = 2,
+                FrozenMovesRemaining = 1
+            };
+            state.Monsters.Add(monster);
+            var service = new GaeBullBing.Core.Monsters.MonsterService();
+
+            var frozenTurn = service.MoveAll(state)[0];
+            Assert.That(frozenTurn.Distance, Is.Zero);
+            Assert.That(monster.FreezeImmunityPending, Is.True);
+            Assert.That(monster.CanReceiveFreeze, Is.False);
+
+            var immuneTurn = service.MoveAll(state)[0];
+            Assert.That(immuneTurn.Distance, Is.EqualTo(2));
+            Assert.That(monster.FreezeImmuneThisTurn, Is.True);
+            Assert.That(monster.CanReceiveFreeze, Is.False);
+
+            var vulnerableTurn = service.MoveAll(state)[0];
+            Assert.That(vulnerableTurn.Distance, Is.EqualTo(2));
+            Assert.That(monster.FreezeImmuneThisTurn, Is.False);
+            Assert.That(monster.CanReceiveFreeze, Is.True);
+        }
+
 
         [Test]
         public void Boss_EscapeCausesImmediateDefeatWithoutUsingEscapeCount()

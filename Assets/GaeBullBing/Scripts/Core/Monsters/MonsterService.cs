@@ -95,9 +95,13 @@ namespace GaeBullBing.Core.Monsters
 
             foreach (var monster in state.Monsters)
             {
-                var currentLine = GetLine(monster.CurrentTileIndex);
-                if (monster.FreezeImmuneLine >= 0 && monster.FreezeImmuneLine != currentLine)
-                    monster.FreezeImmuneLine = -1;
+                if (monster.FreezeImmuneThisTurn)
+                    monster.FreezeImmuneThisTurn = false;
+                if (monster.FreezeImmunityPending)
+                {
+                    monster.FreezeImmunityPending = false;
+                    monster.FreezeImmuneThisTurn = true;
+                }
                 var remainingToBase = BoardState.DefaultTileCount - monster.DistanceTravelled;
                 var startTileIndex = monster.CurrentTileIndex;
                 monster.TouchedFireThisMove = false;
@@ -109,7 +113,12 @@ namespace GaeBullBing.Core.Monsters
                 }
                 var cannotMove = monster.IsDead || monster.FrozenMovesRemaining > 0 ||
                                  monster.StunnedMovesRemaining > 0;
-                if (monster.FrozenMovesRemaining > 0) { monster.FrozenMovesRemaining--; monster.FreezeImmuneLine = currentLine; }
+                if (monster.FrozenMovesRemaining > 0)
+                {
+                    monster.FrozenMovesRemaining--;
+                    if (monster.FrozenMovesRemaining == 0)
+                        monster.FreezeImmunityPending = true;
+                }
                 if (monster.StunnedMovesRemaining > 0) monster.StunnedMovesRemaining--;
 
                 var onIce = HasIce(state, monster.CurrentTileIndex);

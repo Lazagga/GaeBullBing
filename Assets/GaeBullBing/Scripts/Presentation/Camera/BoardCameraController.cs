@@ -38,6 +38,7 @@ namespace GaeBullBing.Presentation.Camera
 
         private void ValidateSizes()
         {
+            verticalPadding = Mathf.Max(1.15f, verticalPadding);
             if (!float.IsFinite(overviewSize) || overviewSize < 0.1f)
                 overviewSize = DefaultOverviewSize;
             if (!float.IsFinite(focusSize) || focusSize < 0.1f)
