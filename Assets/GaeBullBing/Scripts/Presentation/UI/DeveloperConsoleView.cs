@@ -88,6 +88,13 @@ namespace GaeBullBing.Presentation.UI
                 gameController.ResetGameFromConsole();
                 return;
             }
+            if (parts.Length == 2 && parts[0].Equals("speed", StringComparison.OrdinalIgnoreCase) &&
+                float.TryParse(parts[1], out var speed))
+            {
+                gameController.SetGameSpeedFromConsole(speed, out var message);
+                Write(message);
+                return;
+            }
             if (parts.Length == 3 && parts[0].Equals("dice", StringComparison.OrdinalIgnoreCase) && int.TryParse(parts[1], out var first) && int.TryParse(parts[2], out var second))
             { gameController.SetNextDiceResults(first, second, out var message); Write(message); return; }
             if (parts.Length >= 2 && parts[0].Equals("spawn", StringComparison.OrdinalIgnoreCase))
@@ -119,7 +126,7 @@ namespace GaeBullBing.Presentation.UI
                 return;
             }
             if (parts.Length == 1 && parts[0].Equals("help", StringComparison.OrdinalIgnoreCase))
-            { Write("win | lose | reset | dice n m | spawn 몬스터이름 [타일번호] | build 타일번호 티어 | effect 타일번호 frozen/ignite"); return; }
+            { Write("win | lose | reset | speed 1/2/4/8 | dice n m | spawn 몬스터이름 [타일번호] | build 타일번호 티어 | effect 타일번호 frozen/ignite"); return; }
             Write("알 수 없는 명령어입니다. help를 입력하세요.");
         }
 

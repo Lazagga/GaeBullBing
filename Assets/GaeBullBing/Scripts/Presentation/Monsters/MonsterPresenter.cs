@@ -135,7 +135,8 @@ namespace GaeBullBing.Presentation.Monsters
                 foreach (var featherEvent in result.FeatherEvents)
                     if (featherEvent.StepOffset == 0)
                         yield return PlayFeatherEvent(featherEvent, view);
-                yield return view.MoveFlying(result.StartTileIndex, result.Distance, result.ReachedBase);
+                if (result.Distance > 0)
+                    yield return view.MoveFlying(result.StartTileIndex, result.Distance, result.ReachedBase);
                 foreach (var featherEvent in result.FeatherEvents)
                     if (featherEvent.StepOffset > 0)
                         yield return PlayFeatherEvent(featherEvent, view);

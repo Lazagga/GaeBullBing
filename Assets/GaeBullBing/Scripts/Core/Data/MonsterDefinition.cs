@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace GaeBullBing.Core.Data
@@ -12,6 +13,8 @@ namespace GaeBullBing.Core.Data
         [SerializeField, Min(1)] private int maxHp = 1;
         [SerializeField, Min(1)] private int moveDistance = 1;
         [SerializeField, Min(0f)] private float baseDefense;
+        [SerializeField] private string[] statusImmunities = Array.Empty<string>();
+        [SerializeField, Min(0)] private int killRewardDicePoints;
 
         public string Id => id;
         public string DisplayName => displayName;
@@ -20,5 +23,7 @@ namespace GaeBullBing.Core.Data
         public int MaxHp => maxHp;
         public int MoveDistance => moveDistance;
         public float BaseDefense => baseDefense;
+        public string[] StatusImmunities => statusImmunities;
+        public int KillRewardDicePoints => killRewardDicePoints;
     }
 }

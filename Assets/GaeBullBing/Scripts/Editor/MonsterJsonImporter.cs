@@ -61,6 +61,9 @@ namespace GaeBullBing.Editor
                 serialized.FindProperty("maxHp").intValue = source.base_stats.max_hp;
                 serialized.FindProperty("moveDistance").intValue = source.base_stats.move_speed;
                 serialized.FindProperty("baseDefense").floatValue = source.base_stats.base_defense;
+                SetStringArray(serialized.FindProperty("statusImmunities"), source.status_immunities);
+                serialized.FindProperty("killRewardDicePoints").intValue =
+                    Mathf.Max(0, source.kill_rewards?.dice_points ?? 0);
                 serialized.ApplyModifiedPropertiesWithoutUndo();
 
                 definition.name = $"{source.id}_{SanitizeFileName(source.name)}";
@@ -116,6 +119,14 @@ namespace GaeBullBing.Editor
                 Directory.CreateDirectory(OutputFolder);
         }
 
+        private static void SetStringArray(SerializedProperty property, string[] values)
+        {
+            values ??= Array.Empty<string>();
+            property.arraySize = values.Length;
+            for (var index = 0; index < values.Length; index++)
+                property.GetArrayElementAtIndex(index).stringValue = values[index];
+        }
+
         private static string SanitizeFileName(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -139,6 +150,8 @@ namespace GaeBullBing.Editor
             public string tier;
             public int appearance_wave = 1;
             public MonsterBaseStatsJson base_stats;
+            public string[] status_immunities;
+            public KillRewardsJson kill_rewards;
         }
 
         [Serializable]
@@ -147,6 +160,12 @@ namespace GaeBullBing.Editor
             public int max_hp;
             public int move_speed;
             public float base_defense;
+        }
+
+        [Serializable]
+        private sealed class KillRewardsJson
+        {
+            public int dice_points;
         }
     }
 

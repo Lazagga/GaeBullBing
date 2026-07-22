@@ -20,6 +20,14 @@ namespace GaeBullBing.Presentation.UI
             if (panelRoot != null) panelRoot.SetActive(true);
         }
 
+        private void Awake()
+        {
+            if (monsterText == null) return;
+            monsterText.resizeTextForBestFit = true;
+            monsterText.resizeTextMinSize = 11;
+            monsterText.verticalOverflow = VerticalWrapMode.Truncate;
+        }
+
         public void Hide()
         {
             if (panelRoot != null) panelRoot.SetActive(false);

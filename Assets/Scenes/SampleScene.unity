@@ -12965,7 +12965,7 @@ MonoBehaviour:
   tileInfoPanel: {fileID: 233594785}
   gameFlowView: {fileID: 1391285541}
   diceRevealDelay: 0.35
-  cornerDamageRateBonus: 0.1
+  cornerDamageRateBonus: 0.2
 --- !u!4 &1980705412
 Transform:
   m_ObjectHideFlags: 0

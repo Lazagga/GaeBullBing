@@ -16,6 +16,7 @@ namespace GaeBullBing.Core.Towers
         public int UpgradeTier { get; set; } = 1;
         public List<string> AppliedUpgradeIds { get; } = new();
         public List<string> AppliedEffectIds { get; } = new();
+        public Dictionary<string, float> EffectValues { get; } = new();
         public List<int> TargetInstanceIds { get; } = new();
         public int AttackCooldownRounds { get; set; }
         public int BonusAttackCount { get; set; }
@@ -28,5 +29,12 @@ namespace GaeBullBing.Core.Towers
         public StoneExitAnimation StoneExitAnimation { get; set; }
         public int StoneExitTileIndex { get; set; } = -1;
         public bool IsFeatherSealed { get; set; }
+        public int LastResolvedDamage { get; set; }
+
+        public bool HasEffect(string effectId) =>
+            !string.IsNullOrWhiteSpace(effectId) && AppliedEffectIds.Contains(effectId);
+
+        public float GetEffectValue(string effectId, float fallback = 0f) =>
+            EffectValues.TryGetValue(effectId, out var value) ? value : fallback;
     }
 }

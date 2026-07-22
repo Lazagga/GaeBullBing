@@ -25,4 +25,4 @@ MonoBehaviour:
     Value: 20
   effects:
   - Id: burn_damage
-    Value: 1
+    Value: 0.2

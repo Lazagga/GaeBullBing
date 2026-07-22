@@ -80,5 +80,6 @@ namespace GaeBullBing.Core.Game
         public int CurrentTileIndex { get; set; }
         public int GrowthPoints { get; set; }
         public int Gold { get; set; }
+        public int DicePoints { get; set; }
     }
 }

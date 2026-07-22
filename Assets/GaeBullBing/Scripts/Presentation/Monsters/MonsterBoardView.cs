@@ -176,6 +176,15 @@ namespace GaeBullBing.Presentation.Monsters
 
         public IEnumerator MoveFlying(int startTileIndex, int distance, bool reachedBase)
         {
+            if (distance <= 0)
+            {
+                isMoving = false;
+                CurrentTileIndex = startTileIndex;
+                ApplyBossDirection(startTileIndex, false);
+                transform.position = GetStandingPosition(startTileIndex);
+                shadowGroundPosition = GetShadowPosition(startTileIndex);
+                yield break;
+            }
             isMoving = true;
             var targetTileIndex = (startTileIndex + distance) %
                 GaeBullBing.Core.Board.BoardState.DefaultTileCount;
@@ -283,9 +292,11 @@ namespace GaeBullBing.Presentation.Monsters
 
         public IEnumerator PlayHit()
         {
+            if (spriteRenderer == null) yield break;
             var originalColor = spriteRenderer.color;
             spriteRenderer.color = Color.white;
             yield return new WaitForSeconds(0.12f);
+            if (spriteRenderer == null) yield break;
             spriteRenderer.color = originalColor;
         }
     }

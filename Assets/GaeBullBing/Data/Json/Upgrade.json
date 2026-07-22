@@ -109,7 +109,7 @@
         { "stat": "damage", "operation": "add", "value": 20 }
       ],
       "effect_ids": [
-        { "id": "burn_damage", "value": 1 }
+        { "id": "burn_damage", "value": 0.2 }
       ]
     },
     {

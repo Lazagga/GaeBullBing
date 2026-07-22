@@ -19,3 +19,5 @@ MonoBehaviour:
   maxHp: 300
   moveDistance: 2
   baseDefense: 0
+  statusImmunities: []
+  killRewardDicePoints: 5

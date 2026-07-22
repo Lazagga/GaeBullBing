@@ -105,6 +105,20 @@ namespace GaeBullBing.Tests.EditMode
         }
 
         [Test]
+        public void GameSession_AlwaysAddsFivePercentDamageOnLapCompletion()
+        {
+            var state = new GameState();
+            var session = CreateSession(state);
+            session.StartNewGame();
+            state.Player.CurrentTileIndex = 35;
+            session.SetNextDiceResults(1, 1);
+
+            session.RollDiceAndMovePlayer();
+
+            Assert.That(state.PermanentAllTowerDamageRateBonus, Is.EqualTo(.05f));
+        }
+
+        [Test]
         public void MonsterService_MovesMonsterByTurnDistance()
         {
             var state = new GameState();
@@ -396,7 +410,7 @@ namespace GaeBullBing.Tests.EditMode
 
             var results = session.ResolveTowerCombat(new[] { definition }, new[] { upgrade });
 
-            Assert.That(results[0].Damage, Is.EqualTo(38));
+            Assert.That(results[0].Damage, Is.EqualTo(48));
             Object.DestroyImmediate(upgrade);
             Object.DestroyImmediate(definition);
         }
@@ -416,7 +430,7 @@ namespace GaeBullBing.Tests.EditMode
         }
 
         [Test]
-        public void TowerCombat_PrioritizesDistanceBeforeHealth()
+        public void TowerCombat_PrioritizesGoalProgressBeforeHealth()
         {
             var state = CreateCombatState();
             state.Monsters.Add(CreateMonster(1, 4, 10, 4));
@@ -424,7 +438,7 @@ namespace GaeBullBing.Tests.EditMode
 
             var results = ResolveCombat(state, 5, 3, 1);
 
-            Assert.That(results[0].TargetInstanceId, Is.EqualTo(1));
+            Assert.That(results[0].TargetInstanceId, Is.EqualTo(2));
         }
 
         [Test]
@@ -479,7 +493,7 @@ namespace GaeBullBing.Tests.EditMode
                 DefinitionId = "TOW_REAR"
             };
             state.Board.Tiles[7].Tower.AppliedEffectIds.Add("explode");
-            state.Monsters.Add(CreateMonster(1, 6, 15, 6));
+            state.Monsters.Add(CreateMonster(1, 6, 10, 6));
             var front = CreateTowerDefinition("TOW_FRONT", 10, 10);
             var rear = CreateTowerDefinition("TOW_REAR", 10, 10);
 
@@ -655,15 +669,14 @@ namespace GaeBullBing.Tests.EditMode
             state.Monsters.Add(primary);
             state.Monsters.Add(adjacent);
 
-            new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(
-                state,
-                new[]
-                {
-                    new GaeBullBing.Core.Towers.TowerAttackResult(
-                        1, primary.InstanceId, 10f, false, targetTileIndex: 5)
-                });
+            var stats = new System.Collections.Generic.Dictionary<int, GaeBullBing.Core.Towers.TowerCombatStats>
+            {
+                [1] = new GaeBullBing.Core.Towers.TowerCombatStats(10, 1, 1)
+            };
+            var attacks = new GaeBullBing.Core.Towers.TowerCombatService().ResolveByTower(state, stats);
+            new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(state, attacks);
 
-            Assert.That(primary.BurnStacks, Is.EqualTo(2));
+            Assert.That(primary.BurnStacks, Is.EqualTo(1));
             Assert.That(adjacent.BurnStacks, Is.EqualTo(1));
         }
 
@@ -706,7 +719,10 @@ namespace GaeBullBing.Tests.EditMode
             var target = CreateMonster(1, 4, 100, 4);
             state.Monsters.Add(target);
 
-            new GaeBullBing.Core.Towers.TowerEffectService().ResolveMonsterTurnEnd(state);
+            var attacks = new System.Collections.Generic.List<GaeBullBing.Core.Towers.TowerAttackResult>();
+            var effects = new GaeBullBing.Core.Towers.TowerEffectService();
+            effects.ResolveStone(state, tower, attacks);
+            effects.ResolveAfterAttacks(state, attacks);
 
             Assert.That(target.CurrentHealth, Is.EqualTo(90f));
             Assert.That(target.BurnStacks, Is.EqualTo(1));
@@ -720,14 +736,11 @@ namespace GaeBullBing.Tests.EditMode
             state.Monsters.Add(CreateMonster(1, 5, 100, 5));
             state.Monsters.Add(CreateMonster(2, 6, 100, 6));
 
-            var results = new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(
-                state,
-                new[]
-                {
-                    new GaeBullBing.Core.Towers.TowerAttackResult(1, 1, 10f, false,
-                        targetTileIndex: 5,
-                        visualKind: GaeBullBing.Core.Towers.TowerAttackVisualKind.Projectile)
-                });
+            var stats = new System.Collections.Generic.Dictionary<int, GaeBullBing.Core.Towers.TowerCombatStats>
+            {
+                [1] = new GaeBullBing.Core.Towers.TowerCombatStats(10, 1, 1)
+            };
+            var results = new GaeBullBing.Core.Towers.TowerCombatService().ResolveByTower(state, stats);
 
             Assert.That(results[0].VisualKind,
                 Is.EqualTo(GaeBullBing.Core.Towers.TowerAttackVisualKind.AreaTile));
@@ -736,7 +749,58 @@ namespace GaeBullBing.Tests.EditMode
             Assert.That(results[2].VisualKind,
                 Is.EqualTo(GaeBullBing.Core.Towers.TowerAttackVisualKind.AreaTile));
             Assert.That(new[] { results[0].TargetTileIndex, results[1].TargetTileIndex, results[2].TargetTileIndex },
-                Is.EquivalentTo(new[] { 4, 5, 6 }));
+                Is.EquivalentTo(new[] { 5, 6, 7 }));
+        }
+
+        [Test]
+        public void BurnExplode_TriggersAfterAttackRaisesBurnToTen()
+        {
+            var state = CreateCombatState();
+            var tower = state.Board.Tiles[5].Tower;
+            tower.AppliedEffectIds.Add("burn");
+            tower.AppliedEffectIds.Add("burn_explode");
+            var primary = CreateMonster(1, 5, 100, 5);
+            primary.BurnStacks = 9;
+            var adjacent = CreateMonster(2, 6, 100, 6);
+            state.Monsters.Add(primary);
+            state.Monsters.Add(adjacent);
+
+            new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(state,
+                new[] { new GaeBullBing.Core.Towers.TowerAttackResult(1, 1, 10f, false, targetTileIndex: 5) });
+
+            Assert.That(primary.BurnStacks, Is.EqualTo(10));
+            Assert.That(primary.CurrentHealth, Is.EqualTo(90f));
+            Assert.That(adjacent.CurrentHealth, Is.EqualTo(90f));
+            Assert.That(adjacent.BurnStacks, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void ChainLine_ReplacesProjectile_AndEachHitStartsChainTile()
+        {
+            var state = CreateCombatState();
+            var tower = state.Board.Tiles[5].Tower;
+            tower.DefinitionId = "TOW_04";
+            tower.AppliedEffectIds.Add("chain_line");
+            tower.AppliedEffectIds.Add("chain_tile");
+            tower.AppliedEffectIds.Add("burn");
+            var lineTarget = CreateMonster(1, 2, 100, 2);
+            var chainedTarget = CreateMonster(2, 35, 100, 35);
+            state.Monsters.Add(lineTarget);
+            state.Monsters.Add(chainedTarget);
+            var stats = new System.Collections.Generic.Dictionary<int, GaeBullBing.Core.Towers.TowerCombatStats>
+            {
+                [1] = new GaeBullBing.Core.Towers.TowerCombatStats(10, 10, 1)
+            };
+
+            var attacks = new GaeBullBing.Core.Towers.TowerCombatService().ResolveByTower(state, stats);
+            var effects = new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(state, attacks);
+
+            Assert.That(attacks, Has.Count.EqualTo(1));
+            Assert.That(attacks[0].VisualKind, Is.EqualTo(GaeBullBing.Core.Towers.TowerAttackVisualKind.ChainLine));
+            Assert.That(lineTarget.BurnStacks, Is.EqualTo(1));
+            Assert.That(chainedTarget.CurrentHealth, Is.EqualTo(90f));
+            Assert.That(chainedTarget.BurnStacks, Is.EqualTo(1));
+            Assert.That(effects, Has.Some.Matches<GaeBullBing.Core.Towers.TowerAttackResult>(x => x.TargetInstanceId == 2));
         }
 
         [Test]
@@ -827,19 +891,20 @@ namespace GaeBullBing.Tests.EditMode
         }
 
         [Test]
-        public void Boss_FliesDirectlyPastTileFieldsAndPhysicsGuard()
+        public void Boss_AppliesOnlyStartAndDestinationTileEffectsWhileFlying()
         {
             var state = new GameState();
             new BoardService().Initialize(state.Board);
             state.Board.Tiles[0].FireTurnsRemaining = TileState.OneTurnEffectDuration;
             state.Board.Tiles[1].FireTurnsRemaining = TileState.OneTurnEffectDuration;
             state.Board.Tiles[2].IceTurnsRemaining = TileState.OneTurnEffectDuration;
+            state.Board.Tiles[4].FireTurnsRemaining = TileState.OneTurnEffectDuration;
             state.Board.Tiles[3].Tower = new GaeBullBing.Core.Towers.TowerState
             {
                 InstanceId = 1,
                 DefinitionId = "TOW_03"
             };
-            state.Board.Tiles[3].Tower.AppliedUpgradeIds.Add("UPG_PHYSICS_T3_00");
+            state.Board.Tiles[3].Tower.AppliedEffectIds.Add("wall");
             var boss = new GaeBullBing.Core.Monsters.MonsterState
             {
                 InstanceId = 99,
@@ -848,20 +913,41 @@ namespace GaeBullBing.Tests.EditMode
                 MaxHealth = 6000,
                 CurrentTileIndex = 0,
                 MoveDistance = 4,
-                FrozenMovesRemaining = 1,
-                StunnedMovesRemaining = 1,
-                PhysicsGuardTriggeredThisTurn = true
+                BaseDefense = 0
             };
             state.Monsters.Add(boss);
 
+            new GaeBullBing.Core.Towers.TowerEffectService().ResolveMonsterStandby(state);
             var result = new GaeBullBing.Core.Monsters.MonsterService().MoveAll(state)[0];
 
             Assert.That(result.IsBoss, Is.True);
             Assert.That(result.Distance, Is.EqualTo(4));
             Assert.That(boss.CurrentTileIndex, Is.EqualTo(4));
-            Assert.That(boss.BurnStacks, Is.EqualTo(0));
-            Assert.That(boss.PhysicsGuardConsumed, Is.False);
-            Assert.That(boss.PhysicsGuardTriggeredThisTurn, Is.False);
+            Assert.That(boss.BurnStacks, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void Boss_ReceivesFreezeDebuffLikeOtherMonsters()
+        {
+            var state = new GameState();
+            new BoardService().Initialize(state.Board);
+            var boss = new GaeBullBing.Core.Monsters.MonsterState
+            {
+                InstanceId = 99,
+                Tier = MonsterTier.Boss,
+                CurrentTileIndex = 0,
+                CurrentHealth = 6000,
+                MaxHealth = 6000,
+                MoveDistance = 4,
+                FrozenMovesRemaining = 1
+            };
+            state.Monsters.Add(boss);
+
+            var result = new GaeBullBing.Core.Monsters.MonsterService().MoveAll(state)[0];
+
+            Assert.That(result.Distance, Is.EqualTo(0));
+            Assert.That(boss.CurrentTileIndex, Is.EqualTo(0));
+            Assert.That(boss.FrozenMovesRemaining, Is.EqualTo(0));
         }
 
         [Test]
@@ -907,6 +993,7 @@ namespace GaeBullBing.Tests.EditMode
             var high = CreateTowerDefinition("TOW_HIGH", 30, 20);
             var bossDefinition = CreateMonsterDefinition("BOSS_001", MonsterTier.Boss, 6000, 4, 300f);
             var boss = session.SpawnMonster(bossDefinition);
+            boss.StatusImmunities.Add("knockback");
 
             var firstMove = session.MoveMonsters(new[] { low, high },
                 System.Array.Empty<GaeBullBing.Core.Data.TowerUpgradeDefinition>())[0];
@@ -943,6 +1030,7 @@ namespace GaeBullBing.Tests.EditMode
             session.StartNewGame();
             var bossDefinition = CreateMonsterDefinition("BOSS_001", MonsterTier.Boss, 100, 4, 0f);
             var boss = session.SpawnMonster(bossDefinition);
+            boss.StatusImmunities.Add("knockback");
             boss.CurrentTileIndex = 5;
             state.Board.Tiles[5].Tower = new GaeBullBing.Core.Towers.TowerState
             {
@@ -966,6 +1054,151 @@ namespace GaeBullBing.Tests.EditMode
             Assert.That(state.BossDefeated, Is.True);
             Object.DestroyImmediate(tower);
             Object.DestroyImmediate(bossDefinition);
+        }
+
+        [Test]
+        public void TowerCombat_PrioritizesBossAfterExistingTargetPriority()
+        {
+            var state = CreateCombatState();
+            var normal = CreateMonster(1, 7, 100, 30);
+            var boss = CreateMonster(2, 6, 20, 6);
+            boss.Tier = MonsterTier.Boss;
+            state.Monsters.Add(normal);
+            state.Monsters.Add(boss);
+
+            var results = ResolveCombat(state, 10, 3, 1);
+
+            Assert.That(results[0].TargetInstanceId, Is.EqualTo(boss.InstanceId));
+        }
+
+        [Test]
+        public void FeatherSealedTower_ContinuesCooldownAndAttacksWhenUnsealed()
+        {
+            var state = CreateCombatState();
+            var tower = state.Board.Tiles[5].Tower;
+            tower.AttackCooldownRounds = 1;
+            tower.IsFeatherSealed = true;
+            state.Monsters.Add(CreateMonster(1, 5, 100, 5));
+            var stats = new System.Collections.Generic.Dictionary<int, GaeBullBing.Core.Towers.TowerCombatStats>
+            {
+                [tower.InstanceId] = new GaeBullBing.Core.Towers.TowerCombatStats(10, 1, 1)
+            };
+            var service = new GaeBullBing.Core.Towers.TowerCombatService();
+
+            var sealedResults = service.ResolveByTower(state, stats);
+            tower.IsFeatherSealed = false;
+            var unsealedResults = service.ResolveByTower(state, stats);
+
+            Assert.That(sealedResults, Is.Empty);
+            Assert.That(tower.AttackCooldownRounds, Is.EqualTo(0));
+            Assert.That(unsealedResults, Is.Not.Empty);
+        }
+
+        [Test]
+        public void CooldownTower_DoesNotStartCooldownWithoutAnActualAttack()
+        {
+            var state = CreateCombatState();
+            var tower = state.Board.Tiles[5].Tower;
+            tower.AppliedEffectIds.Add("cooldown");
+            tower.EffectValues["cooldown"] = 2f;
+            var stats = new System.Collections.Generic.Dictionary<int, GaeBullBing.Core.Towers.TowerCombatStats>
+            {
+                [tower.InstanceId] = new GaeBullBing.Core.Towers.TowerCombatStats(10, 1, 1)
+            };
+            var service = new GaeBullBing.Core.Towers.TowerCombatService();
+
+            service.ResolveByTower(state, stats);
+
+            Assert.That(tower.AttackCooldownRounds, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void WallTower_DamagesAndStopsMonsterOnEntry()
+        {
+            var state = new GameState();
+            new BoardService().Initialize(state.Board);
+            var wall = new GaeBullBing.Core.Towers.TowerState { InstanceId = 7, DefinitionId = "TOW_03" };
+            wall.AppliedEffectIds.Add("wall");
+            state.Board.Tiles[2].Tower = wall;
+            var monster = CreateMonster(1, 0, 100, 0);
+            monster.MaxHealth = 100;
+            monster.MoveDistance = 4;
+            state.Monsters.Add(monster);
+
+            var results = new GaeBullBing.Core.Monsters.MonsterService().MoveAll(state,
+                new System.Collections.Generic.Dictionary<int, float> { [wall.InstanceId] = 25f });
+
+            Assert.That(results[0].Distance, Is.EqualTo(2));
+            Assert.That(monster.CurrentTileIndex, Is.EqualTo(2));
+            Assert.That(monster.CurrentHealth, Is.EqualTo(75f));
+        }
+
+        [Test]
+        public void Knockback_AppliesDestinationFireAndWallEffects()
+        {
+            var state = new GameState();
+            new BoardService().Initialize(state.Board);
+            var source = new GaeBullBing.Core.Towers.TowerState { InstanceId = 1, DefinitionId = "TOW_03" };
+            source.AppliedEffectIds.Add("knockback");
+            state.Board.Tiles[10].Tower = source;
+            var wall = new GaeBullBing.Core.Towers.TowerState
+                { InstanceId = 2, DefinitionId = "TOW_03", LastResolvedDamage = 20 };
+            wall.AppliedEffectIds.Add("wall");
+            state.Board.Tiles[4].Tower = wall;
+            state.Board.Tiles[4].FireTurnsRemaining = TileState.OneTurnEffectDuration;
+            var monster = CreateMonster(1, 5, 100, 5);
+            monster.MaxHealth = 100;
+            state.Monsters.Add(monster);
+
+            new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(state,
+                new[] { new GaeBullBing.Core.Towers.TowerAttackResult(1, 1, 10, false, targetTileIndex: 5) });
+
+            Assert.That(monster.CurrentTileIndex, Is.EqualTo(4));
+            Assert.That(monster.BurnStacks, Is.EqualTo(1));
+            Assert.That(monster.CurrentHealth, Is.LessThan(80f));
+            Assert.That(monster.KnockbackImmunityPending, Is.True);
+            Assert.That(monster.KnockbackConsumed, Is.False);
+        }
+
+        [Test]
+        public void Knockback_AppliesToNextTargetAfterEarlierTargetDiesDuringMultiAttack()
+        {
+            var state = CreateCombatState();
+            var tower = state.Board.Tiles[5].Tower;
+            tower.AppliedEffectIds.Add("knockback");
+            var first = CreateMonster(1, 6, 15, 10);
+            var second = CreateMonster(2, 7, 100, 9);
+            state.Monsters.Add(first);
+            state.Monsters.Add(second);
+            var stats = new System.Collections.Generic.Dictionary<int, GaeBullBing.Core.Towers.TowerCombatStats>
+            {
+                [tower.InstanceId] = new GaeBullBing.Core.Towers.TowerCombatStats(10, 3, 1, 3)
+            };
+            var attacks = new GaeBullBing.Core.Towers.TowerCombatService().ResolveByTower(state, stats);
+
+            new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(state, attacks);
+
+            Assert.That(first.IsDead, Is.True);
+            Assert.That(second.CurrentTileIndex, Is.EqualTo(6));
+            Assert.That(second.KnockbackImmunityPending, Is.True);
+        }
+
+        [Test]
+        public void KillReward_AddsJsonConfiguredDicePointsOnlyOnce()
+        {
+            var state = new GameState();
+            var session = CreateSession(state);
+            session.StartNewGame();
+            var definition = CreateMonsterDefinition("MON_REWARD", MonsterTier.Normal, 10, 1, 0f);
+            SetPrivateField(definition, "killRewardDicePoints", 5);
+            var monster = session.SpawnMonster(definition);
+            var kill = new[] { new GaeBullBing.Core.Towers.TowerAttackResult(1, monster.InstanceId, 10, true) };
+
+            session.CollectKillRewards(kill);
+            session.CollectKillRewards(kill);
+
+            Assert.That(state.Player.DicePoints, Is.EqualTo(5));
+            Object.DestroyImmediate(definition);
         }
 
         private static GameState CreateCombatState()

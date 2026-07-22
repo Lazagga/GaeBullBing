@@ -113,7 +113,7 @@ namespace GaeBullBing.Presentation.UI
                 }
                 else if (index == 1)
                 {
-                    SetButtonText(button, "모든 타워 공격력 +5%");
+                    SetButtonText(button, "계속 진행");
                     button.onClick.AddListener(() => { allTowerBoostSelected?.Invoke(); Hide(); });
                 }
                 else button.gameObject.SetActive(false);

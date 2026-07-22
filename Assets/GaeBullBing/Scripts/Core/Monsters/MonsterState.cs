@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace GaeBullBing.Core.Monsters
 {
@@ -29,9 +30,13 @@ namespace GaeBullBing.Core.Monsters
         public bool PhysicsGuardConsumed { get; set; }
         public bool PhysicsGuardTriggeredThisTurn { get; set; }
         public bool BossInitialFeatherPlaced { get; set; }
+        public bool IsNewlySpawned { get; set; }
+        public HashSet<string> StatusImmunities { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public bool IsDead => CurrentHealth <= 0;
         public bool IsBoss => Tier == MonsterTier.Boss;
+        public bool IsImmuneTo(string statusId) =>
+            !string.IsNullOrWhiteSpace(statusId) && StatusImmunities.Contains(statusId);
 
         public float GetDefense(DifficultyState difficulty)
         {

@@ -41,7 +41,7 @@ namespace GaeBullBing.Presentation.Game
         [SerializeField] private TileInfoPanelView tileInfoPanel;
         [SerializeField] private GameFlowView gameFlowView;
         [SerializeField, Min(0f)] private float diceRevealDelay = 0.35f;
-        [SerializeField, Range(0f, 1f)] private float cornerDamageRateBonus = .1f;
+        [SerializeField, Range(0f, 1f)] private float cornerDamageRateBonus = .2f;
 
         private bool isBusy;
         private MonsterDatabase monsterDatabase;
@@ -181,7 +181,7 @@ namespace GaeBullBing.Presentation.Game
             try
             {
                 tile.Tower = null;
-                Session.BuildTower(tileIndex, definition.Id);
+                Session.BuildTower(tileIndex, definition);
                 foreach (var upgrade in upgrades)
                     Session.UpgradeTower(tileIndex, upgrade);
                 towerPresenter.SetTower(tileIndex, definition, tier);
@@ -271,6 +271,7 @@ namespace GaeBullBing.Presentation.Game
 
         private void Awake()
         {
+            Time.timeScale = 1f;
             State = new GameState();
             Session = new GameSession(
                 State,
@@ -452,6 +453,18 @@ namespace GaeBullBing.Presentation.Game
             ReturnToTitle();
         }
 
+        public bool SetGameSpeedFromConsole(float speed, out string message)
+        {
+            if (speed != 1f && speed != 2f && speed != 4f && speed != 8f)
+            {
+                message = "배속은 1, 2, 4, 8 중 하나여야 합니다.";
+                return false;
+            }
+            Time.timeScale = speed;
+            message = $"게임 배속을 {speed:0}배로 변경했습니다.";
+            return true;
+        }
+
         public void RestartGame()
         {
             AcceptsGameplayInput = false;
@@ -575,11 +588,13 @@ namespace GaeBullBing.Presentation.Game
             var definition = FindTowerDefinition(tile.Tower.DefinitionId);
             if (definition == null) return featherDescription + $"[타워]\n정의 없음: {tile.Tower.DefinitionId}";
             var stats = CalculateDisplayStats(definition, tile);
+            var damageFormula = BuildDamageFormula(definition, tile);
             var builder = new StringBuilder();
             builder.AppendLine($"[타워] {definition.DisplayName}  T{tile.Tower.UpgradeTier}");
             builder.AppendLine($"속성: {GetElementName(definition.Element)}");
             builder.AppendLine($"공격력 {stats.damage}  |  사거리 ±{stats.range}타일");
             builder.AppendLine($"대상 {stats.targets}  |  공격 횟수 {stats.attacks}");
+            builder.AppendLine($"\uACF5\uACA9\uB825 \uACC4\uC0B0: {damageFormula}");
             builder.AppendLine();
             builder.AppendLine("[적용된 업그레이드]");
             if (tile.Tower.AppliedUpgradeIds.Count == 0) builder.Append("없음");
@@ -620,6 +635,33 @@ namespace GaeBullBing.Presentation.Game
             return string.Join(", ", values);
         }
 
+        private string BuildDamageFormula(TowerDefinition definition, TileState tile)
+        {
+            var upgradeAdd = 0f;
+            var upgradeMultiply = 1f;
+            float? damageSet = null;
+            foreach (var id in tile.Tower.AppliedUpgradeIds)
+            {
+                var upgrade = FindUpgradeDefinition(id);
+                if (upgrade == null) continue;
+                foreach (var modifier in upgrade.StatModifiers)
+                {
+                    if (!modifier.Stat.Equals("damage", System.StringComparison.OrdinalIgnoreCase) ||
+                        upgrade.Id == "UPG_ICE_T3_02" && modifier.Operation.Equals("Multiply", System.StringComparison.OrdinalIgnoreCase)) continue;
+                    if (modifier.Operation.Equals("Set", System.StringComparison.OrdinalIgnoreCase)) damageSet = modifier.Value;
+                    else if (modifier.Operation.Equals("Multiply", System.StringComparison.OrdinalIgnoreCase)) upgradeMultiply *= modifier.Value;
+                    else upgradeAdd += modifier.Value;
+                }
+            }
+            if (damageSet.HasValue) return $"{damageSet.Value:0.##}";
+            var mapMultiply = 1f + State.PermanentAllTowerDamageRateBonus +
+                State.GetPermanentTowerDamageRateBonus(definition.Element) +
+                State.GetPermanentLineTowerDamageRateBonus(MonsterService.GetLine(tile.Index)) +
+                GetLineAuraDamageRateBonus(tile);
+            var postUpgradeAdd = State.GetPermanentTowerDamageFlatBonus(definition.Element);
+            return $"({definition.Damage:0.##} + {upgradeAdd:0.##}) * {upgradeMultiply * mapMultiply * 100f:0.##}% + {postUpgradeAdd:0.##}";
+        }
+
         private (int damage, int range, int targets, int attacks) CalculateDisplayStats(TowerDefinition definition, TileState tile)
         {
             var tower = tile.Tower;
@@ -647,12 +689,12 @@ namespace GaeBullBing.Presentation.Game
             }
             return (
                 Mathf.Max(0, Mathf.RoundToInt(damageSet ??
-                    definition.Damage * damageMultiply *
+                    (definition.Damage + damageAdd) * damageMultiply *
                     (1f + State.PermanentAllTowerDamageRateBonus +
                      State.GetPermanentTowerDamageRateBonus(definition.Element) +
                      State.GetPermanentLineTowerDamageRateBonus(MonsterService.GetLine(tile.Index)) +
-                     GetLineAuraDamageRateBonus(tile)) +
-                    damageAdd + State.GetPermanentTowerDamageFlatBonus(definition.Element))),
+                    GetLineAuraDamageRateBonus(tile)) +
+                    State.GetPermanentTowerDamageFlatBonus(definition.Element))),
                 Mathf.Max(0, Mathf.RoundToInt(rangeSet ?? (definition.Range + rangeAdd) * rangeMultiply)),
                 Mathf.Max(1, Mathf.RoundToInt(targetSet ?? (definition.TargetCount + targetAdd) * targetMultiply)),
                 Mathf.Max(1, Mathf.RoundToInt(attackSet ?? (definition.AttackCount + attackAdd) * attackMultiply)));
@@ -730,8 +772,9 @@ namespace GaeBullBing.Presentation.Game
 
         private void ApplyArrivalTowerEffects(TileState tile)
         {
-            if (tile.HasTower && tile.Tower.AppliedUpgradeIds.Contains("UPG_PHYSICS_T2_04"))
-                Session.AddPermanentLineTowerDamageRateBonus(MonsterService.GetLine(tile.Index), .1f);
+            if (tile.HasTower && tile.Tower.HasEffect(TowerEffectCatalog.TileStepLineBuff))
+                Session.AddPermanentLineTowerDamageRateBonus(MonsterService.GetLine(tile.Index),
+                    tile.Tower.GetEffectValue(TowerEffectCatalog.TileStepLineBuff, 10f) / 100f);
         }
 
         private bool TryOpenCornerAction(int tileIndex)
@@ -842,7 +885,7 @@ namespace GaeBullBing.Presentation.Game
 
             var tileIndex = State.Player.CurrentTileIndex;
             var tile = State.Board.Tiles[tileIndex];
-            Session.BuildTower(tileIndex, definition.Id);
+            Session.BuildTower(tileIndex, definition);
 
             towerPresenter.SetTower(tileIndex, definition);
             radialMenu.Hide();
@@ -931,7 +974,6 @@ namespace GaeBullBing.Presentation.Game
 
         private void ApplyAllTowerDamageBoost()
         {
-            Session.AddPermanentAllTowerDamageRateBonus(.05f);
             diceTuningComplete = true;
         }
 
@@ -939,6 +981,20 @@ namespace GaeBullBing.Presentation.Game
         {
             isBusy = true;
             diceHud.SetBusy();
+            var killedCount = 0;
+
+            var standbyResults = Session.ResolveMonsterStandbyEffects();
+            Session.CollectKillRewards(standbyResults);
+            foreach (var result in standbyResults)
+            {
+                if (result.Killed) killedCount++;
+                yield return PlayAttackResult(result, new HashSet<int>());
+            }
+            if (State.IsVictory)
+            {
+                FinishVictory();
+                yield break;
+            }
 
             if (difficultyService.IsBossLevel(State.Difficulty))
             {
@@ -990,6 +1046,12 @@ namespace GaeBullBing.Presentation.Game
                 }
                 else
                     yield return monsterPresenter.Move(result);
+                Session.CollectKillRewards(result.TileEffectResults);
+                foreach (var tileEffect in result.TileEffectResults)
+                {
+                    if (tileEffect.Killed) killedCount++;
+                    yield return PlayAttackResult(tileEffect, new HashSet<int>());
+                }
             }
             monsterPresenter.RefreshLayout();
             boardView.RefreshTileEffects(State.Board);
@@ -1065,11 +1127,12 @@ namespace GaeBullBing.Presentation.Game
             for (var resultIndex = 0; resultIndex < statusResults.Count; resultIndex++)
                 if (!consumedStoneResults.Contains(resultIndex))
                     yield return PlayAttackResult(statusResults[resultIndex], illuminatedLineTowerIds);
-            var killedCount = 0;
             foreach (var attackResult in attackResults)
                 if (attackResult.Killed) killedCount++;
             foreach (var statusResult in statusResults)
                 if (statusResult.Killed) killedCount++;
+            Session.CollectKillRewards(attackResults);
+            Session.CollectKillRewards(statusResults);
             difficultyService.AddKills(State.Difficulty, killedCount);
             diceHud.RefreshDifficulty();
 

@@ -63,7 +63,7 @@ namespace GaeBullBing.Editor
 
             var monsters = CreateText("Monster Information", monsterBox.transform, 27, FontStyle.Normal, TextAnchor.UpperLeft);
             monsters.resizeTextForBestFit = true;
-            monsters.resizeTextMinSize = 18;
+            monsters.resizeTextMinSize = 11;
             monsters.resizeTextMaxSize = 27;
             SetRect(monsters.rectTransform, Vector2.zero, Vector2.one, new Vector2(12f, 12f), new Vector2(-24f, -24f), Vector2.zero);
 

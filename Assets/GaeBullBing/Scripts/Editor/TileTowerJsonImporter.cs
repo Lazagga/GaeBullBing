@@ -47,6 +47,9 @@ namespace GaeBullBing.Editor
                     throw new InvalidOperationException($"{item.id}의 속성이 올바르지 않습니다: {item.element}");
                 if (item.base_stats == null)
                     throw new InvalidOperationException($"{item.id}의 base_stats가 없습니다.");
+                foreach (var effectId in item.base_effect_ids ?? Array.Empty<string>())
+                    if (!TowerEffectCatalog.IsImplemented(effectId))
+                        throw new InvalidOperationException($"{item.id}의 기본 효과가 구현되지 않았습니다: {effectId}");
 
                 var definition = FindOrCreate<TowerDefinition>(TowerFolder, item.id);
                 var serialized = new SerializedObject(definition);
@@ -79,8 +82,22 @@ namespace GaeBullBing.Editor
                 if (!Enum.TryParse(item.element, true, out TowerElement element))
                     throw new InvalidOperationException($"Invalid upgrade element: {item.element}");
                 foreach (var effect in item.effect_ids ?? Array.Empty<EffectJson>())
+                {
                     if (!TowerEffectCatalog.IsImplemented(effect.id))
-                        Debug.LogWarning($"{item.id} references an unimplemented code effect: {effect.id}");
+                        throw new InvalidOperationException($"{item.id}의 효과가 구현되지 않았습니다: {effect.id}");
+                    if (effect.value < 0f)
+                        throw new InvalidOperationException($"{item.id}의 효과 수치는 음수일 수 없습니다: {effect.id}");
+                }
+                foreach (var modifier in item.stat_modifiers ?? Array.Empty<ModifierJson>())
+                {
+                    var stat = modifier.stat?.ToLowerInvariant();
+                    if (stat != "damage" && stat != "range" && stat != "target_count" &&
+                        stat != "attack_count")
+                        throw new InvalidOperationException($"{item.id}의 지원하지 않는 스탯입니다: {modifier.stat}");
+                    var operation = modifier.operation?.ToLowerInvariant();
+                    if (operation != "add" && operation != "multiply" && operation != "set")
+                        throw new InvalidOperationException($"{item.id}의 지원하지 않는 연산입니다: {modifier.operation}");
+                }
                 var definition = FindOrCreate<TowerUpgradeDefinition>(UpgradeFolder, item.id);
                 var serialized = new SerializedObject(definition);
                 serialized.FindProperty("id").stringValue = item.id;
