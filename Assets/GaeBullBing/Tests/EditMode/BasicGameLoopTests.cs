@@ -543,9 +543,11 @@ namespace GaeBullBing.Tests.EditMode
                 InstanceId = 1,
                 DefinitionId = "TOW_04"
             };
-            tower.AppliedUpgradeIds.Add("UPG_ELECTRIC_T2_00");
-            tower.AppliedUpgradeIds.Add("UPG_ELECTRIC_T2_02");
-            tower.AppliedUpgradeIds.Add("UPG_ELECTRIC_T2_03");
+            tower.AppliedEffectIds.Add("spread_debuff");
+            tower.AppliedEffectIds.Add("chain_tile");
+            tower.AppliedEffectIds.Add("spread_range_add");
+            tower.EffectValues["spread_range_add"] = 1f;
+
             state.Board.Tiles[5].Tower = tower;
             state.Board.Tiles[5].FireTurnsRemaining = TileState.OneTurnEffectDuration;
 
@@ -583,7 +585,7 @@ namespace GaeBullBing.Tests.EditMode
                 InstanceId = 1,
                 DefinitionId = "TOW_04"
             };
-            tower.AppliedUpgradeIds.Add("UPG_ELECTRIC_T2_02");
+            tower.AppliedEffectIds.Add("chain_tile");
             state.Board.Tiles[5].Tower = tower;
 
             var target = CreateMonster(1, 10, 100, 10);
@@ -729,6 +731,38 @@ namespace GaeBullBing.Tests.EditMode
         }
 
         [Test]
+        public void RollingStone_WithKnockbackPushesAndHitsAgainOnEveryFollowingTile()
+        {
+            var state = CreateCombatState();
+            state.Board.Tiles[5].Tower = null;
+            var tower = new GaeBullBing.Core.Towers.TowerState
+            {
+                InstanceId = 1,
+                DefinitionId = "TOW_03",
+                StoneActive = true,
+                StoneTileIndex = 8,
+                StoneBaseDamage = 10,
+                StoneDamageMultiplier = 1f
+            };
+            tower.AppliedEffectIds.Add("rolling_stone");
+            tower.AppliedEffectIds.Add("knockback");
+            state.Board.Tiles[8].Tower = tower;
+            var target = CreateMonster(1, 7, 200, 7);
+            state.Monsters.Add(target);
+            var results = new System.Collections.Generic.List<GaeBullBing.Core.Towers.TowerAttackResult>();
+
+            new GaeBullBing.Core.Towers.TowerEffectService().ResolveStone(state, tower, results);
+
+            var rollingHitCount = 0;
+            foreach (var result in results)
+                if (result.VisualKind == GaeBullBing.Core.Towers.TowerAttackVisualKind.RollingStone)
+                    rollingHitCount++;
+            Assert.That(target.CurrentTileIndex, Is.EqualTo(0));
+            Assert.That(rollingHitCount, Is.EqualTo(8));
+            Assert.That(target.CurrentHealth, Is.EqualTo(148f));
+        }
+
+        [Test]
         public void AreaEffect_EmitsTileMarkersBeforeAreaDamage()
         {
             var state = CreateCombatState();
@@ -821,6 +855,26 @@ namespace GaeBullBing.Tests.EditMode
             Assert.That(tower.AppliedEffectIds, Does.Contain("aoe_tile"));
             Object.DestroyImmediate(upgrade);
         }
+
+        [Test]
+        public void EffectResolution_UsesEffectIdsInsteadOfLegacyUpgradeIdMeaning()
+        {
+            var state = CreateCombatState();
+            var tower = state.Board.Tiles[5].Tower;
+            tower.AppliedUpgradeIds.Add("UPG_FIRE_T3_00");
+            tower.AppliedEffectIds.Add("burn");
+            var target = CreateMonster(1, 5, 100, 5);
+            state.Monsters.Add(target);
+
+            new GaeBullBing.Core.Towers.TowerEffectService().ResolveAfterAttacks(
+                state,
+                new[] { new GaeBullBing.Core.Towers.TowerAttackResult(
+                    tower.InstanceId, target.InstanceId, 10f, false, targetTileIndex: 5) });
+
+            Assert.That(target.BurnStacks, Is.EqualTo(1));
+            Assert.That(state.Board.Tiles[5].FireTurnsRemaining, Is.EqualTo(0));
+        }
+
 
         [Test]
         public void DifficultyService_EntersBossLevelAfterFiveNormalLevels()
@@ -1037,7 +1091,7 @@ namespace GaeBullBing.Tests.EditMode
                 InstanceId = 1,
                 DefinitionId = "TOW_03"
             };
-            state.Board.Tiles[5].Tower.AppliedUpgradeIds.Add("UPG_PHYSICS_T3_02");
+            state.Board.Tiles[5].Tower.AppliedEffectIds.Add("knockback");
             var tower = CreateTowerDefinition("TOW_03", 10, 1);
 
             var results = session.ResolveTowerCombat(new[] { tower },

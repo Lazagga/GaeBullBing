@@ -707,7 +707,7 @@ namespace GaeBullBing.Presentation.Game
             foreach (var tile in State.Board.Tiles)
                 if (tile.HasTower && tile.Tower.InstanceId != targetTile.Tower.InstanceId &&
                     MonsterService.GetLine(tile.Index) == line &&
-                    tile.Tower.AppliedUpgradeIds.Contains("UPG_PHYSICS_T2_03"))
+                    tile.Tower.HasEffect(TowerEffectCatalog.LineTowerBuff))
                     rate += .2f;
             return rate;
         }
@@ -1065,9 +1065,23 @@ namespace GaeBullBing.Presentation.Game
             var attackResults = Session.ResolveTowerCombat(towerDefinitions, towerUpgradeDefinitions);
             boardView.RefreshTileEffects(State.Board);
             var illuminatedLineTowerIds = new HashSet<int>();
+            var consumedStoneAttackResults = new HashSet<int>();
             for (var attackIndex = 0; attackIndex < attackResults.Count; attackIndex++)
             {
                 var attackResult = attackResults[attackIndex];
+                if (attackResult.VisualKind == TowerAttackVisualKind.RollingStone)
+                {
+                    if (consumedStoneAttackResults.Contains(attackIndex)) continue;
+                    stonePresenter.Refresh(State);
+                    yield return stonePresenter.PlayResolvedMovement(
+                        State,
+                        attackResults,
+                        consumedStoneAttackResults,
+                        result => PlayAttackResult(result, illuminatedLineTowerIds),
+                        attackResult.TowerInstanceId);
+                    stonePresenter.Refresh(State);
+                    continue;
+                }
                 if (attackResult.VisualKind == TowerAttackVisualKind.ChainLine)
                 {
                     var chainTowerId = attackResult.TowerInstanceId;
@@ -1108,25 +1122,12 @@ namespace GaeBullBing.Presentation.Game
                 FinishVictory();
                 yield break;
             }
-            stonePresenter.Refresh(State);
             var statusResults = Session.ResolveMonsterTurnEndEffects();
-            var consumedStoneResults = new HashSet<int>();
             for (var resultIndex = 0; resultIndex < statusResults.Count; resultIndex++)
             {
-                if (statusResults[resultIndex].VisualKind == TowerAttackVisualKind.RollingStone) continue;
-                consumedStoneResults.Add(resultIndex);
                 yield return PlayAttackResult(statusResults[resultIndex], illuminatedLineTowerIds);
             }
-            yield return stonePresenter.PlayResolvedMovement(
-                State,
-                statusResults,
-                consumedStoneResults,
-                result => PlayAttackResult(result, illuminatedLineTowerIds));
-            stonePresenter.Refresh(State);
             boardView.RefreshTileEffects(State.Board);
-            for (var resultIndex = 0; resultIndex < statusResults.Count; resultIndex++)
-                if (!consumedStoneResults.Contains(resultIndex))
-                    yield return PlayAttackResult(statusResults[resultIndex], illuminatedLineTowerIds);
             foreach (var attackResult in attackResults)
                 if (attackResult.Killed) killedCount++;
             foreach (var statusResult in statusResults)

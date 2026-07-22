@@ -328,10 +328,9 @@ namespace GaeBullBing.Core.Towers
 
         private static bool HasEffect(TowerState tower, string effectId, params string[] legacyUpgradeIds)
         {
-            if (tower.AppliedEffectIds.Contains(effectId)) return true;
-            foreach (var upgradeId in legacyUpgradeIds)
-                if (tower.AppliedUpgradeIds.Contains(upgradeId)) return true;
-            return false;
+            // Runtime behavior is defined exclusively by effect_ids. Upgrade IDs must
+            // remain freely reusable when designers rearrange effects in JSON.
+            return tower.AppliedEffectIds.Contains(effectId);
         }
 
         private static int CompareTargets(

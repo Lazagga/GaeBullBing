@@ -22,7 +22,6 @@ namespace GaeBullBing.Core.Towers
                 if (attack.VisualKind == TowerAttackVisualKind.AreaTile) continue;
                 var towerTile = FindTowerTile(state, attack.TowerInstanceId); if (towerTile == null) continue;
                 var target = FindMonster(state, attack.TargetInstanceId);
-                var upgrades = towerTile.Tower.AppliedUpgradeIds;
                 var tower = towerTile.Tower;
                 var attackTileIndex = attack.TargetTileIndex >= 0
                     ? attack.TargetTileIndex
@@ -31,12 +30,10 @@ namespace GaeBullBing.Core.Towers
                 var attackedTiles = new HashSet<int> { attackTileIndex };
                 if (towerTile.Tower.DefinitionId == "TOW_04")
                     SpreadTileField(state, attackTileIndex,
-                        1 + Math.Max(0, (int)Math.Round(tower.GetEffectValue(
-                            TowerEffectCatalog.SpreadRangeAdd,
-                            upgrades.Contains("UPG_ELECTRIC_T2_03") ? 1f : 0f))),
+                        1 + Math.Max(0, (int)Math.Round(tower.GetEffectValue(TowerEffectCatalog.SpreadRangeAdd, 0f))),
                         attack.TowerInstanceId, extra);
                 if (target != null) ApplyOnHitDebuffs(tower, target);
-                if (target != null && !target.IsImmuneTo("knockback") &&
+                if (target != null && !attack.KnockbackApplied && !target.IsImmuneTo("knockback") &&
                     HasEffect(tower, TowerEffectCatalog.Knockback, "UPG_PHYSICS_T3_02") &&
                     !target.KnockbackConsumed)
                 {
@@ -152,10 +149,9 @@ namespace GaeBullBing.Core.Towers
 
         private static bool HasEffect(TowerState tower, string effectId, params string[] legacyUpgradeIds)
         {
-            if (tower.AppliedEffectIds.Contains(effectId)) return true;
-            foreach (var upgradeId in legacyUpgradeIds)
-                if (tower.AppliedUpgradeIds.Contains(upgradeId)) return true;
-            return false;
+            // Upgrade IDs identify data entries, not behavior. An ID-based fallback
+            // makes a JSON effect change retain the entry's previous behavior.
+            return tower.AppliedEffectIds.Contains(effectId);
         }
         private static void AddAreaTiles(
             GameState state,
@@ -309,23 +305,42 @@ namespace GaeBullBing.Core.Towers
             int damage,
             ICollection<TowerAttackResult> results)
         {
+            var appliesKnockback = HasEffect(sourceTower, TowerEffectCatalog.Knockback,
+                "UPG_PHYSICS_T3_02");
             foreach (var monster in new List<MonsterState>(state.Monsters))
             {
                 if (monster.IsDead || monster.CurrentTileIndex != sourceTower.StoneTileIndex) continue;
 
                 var fromTile = monster.CurrentTileIndex;
                 var actualDamage = monster.ReceiveDamage(damage, state.Difficulty);
-                var killed = monster.IsDead;
+                var toTile = fromTile;
+                var knockbackApplied = appliesKnockback && !monster.IsDead &&
+                    !monster.IsImmuneTo("knockback") && !monster.KnockbackConsumed;
+                var destinationResults = new List<TowerAttackResult>();
+                if (knockbackApplied)
+                {
+                    toTile = fromTile == 0
+                        ? 0
+                        : (fromTile + state.Board.TileCount - 1) % state.Board.TileCount;
+                    monster.KnockbackImmunityPending = true;
+                    monster.CurrentTileIndex = toTile;
+                    if (toTile != fromTile)
+                        monster.DistanceTravelled = Math.Max(0, monster.DistanceTravelled - 1);
+                    ResolveKnockbackDestination(state, monster, toTile, sourceTower.InstanceId,
+                        destinationResults);
+                }
                 results.Add(new TowerAttackResult(
                     sourceTower.InstanceId,
                     monster.InstanceId,
                     actualDamage,
-                    killed,
-                    false,
+                    monster.IsDead,
+                    knockbackApplied,
                     fromTile,
-                    fromTile,
+                    toTile,
                     fromTile,
                     TowerAttackVisualKind.RollingStone));
+                foreach (var destinationResult in destinationResults)
+                    results.Add(destinationResult);
             }
         }
 

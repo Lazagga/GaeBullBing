@@ -36,7 +36,7 @@ namespace GaeBullBing.Presentation.Towers
             var activeIds = new HashSet<int>();
             foreach (var tile in state.Board.Tiles)
             {
-                if (!tile.HasTower || !tile.Tower.StoneActive) continue;
+                if (!tile.HasTower || !tile.Tower.StoneActive && tile.Tower.StoneTraversalTiles.Count == 0) continue;
 
                 var tower = tile.Tower;
                 activeIds.Add(tower.InstanceId);
@@ -50,10 +50,11 @@ namespace GaeBullBing.Presentation.Towers
                     views.Add(tower.InstanceId, renderer);
                 }
 
-                var groundPosition = boardView.GetWorldPosition(tower.StoneTileIndex);
+                var displayTileIndex = tower.StoneTraversalTiles.Count > 0 ? tile.Index : tower.StoneTileIndex;
+                var groundPosition = boardView.GetWorldPosition(displayTileIndex);
                 renderer.transform.position = groundPosition + visualOffset;
                 SetStoneScale(renderer, diameter);
-                renderer.sortingOrder = GetStoneOrder(groundPosition, tower.StoneTileIndex);
+                renderer.sortingOrder = GetStoneOrder(groundPosition, displayTileIndex);
                 renderer.gameObject.SetActive(true);
             }
 
@@ -65,12 +66,14 @@ namespace GaeBullBing.Presentation.Towers
             GameState state,
             IReadOnlyList<TowerAttackResult> resolvedResults,
             ISet<int> consumedResultIndices,
-            System.Func<TowerAttackResult, IEnumerator> playAttack)
+            System.Func<TowerAttackResult, IEnumerator> playAttack,
+            int onlyTowerInstanceId = 0)
         {
             if (state == null || boardView == null) yield break;
             foreach (var tile in state.Board.Tiles)
             {
-                if (!tile.HasTower || tile.Tower.StoneTraversalTiles.Count == 0) continue;
+                if (!tile.HasTower || tile.Tower.StoneTraversalTiles.Count == 0 ||
+                    onlyTowerInstanceId > 0 && tile.Tower.InstanceId != onlyTowerInstanceId) continue;
                 var tower = tile.Tower;
                 if (!views.TryGetValue(tower.InstanceId, out var renderer)) continue;
 
