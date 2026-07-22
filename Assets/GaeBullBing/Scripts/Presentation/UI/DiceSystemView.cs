@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using GaeBullBing.Core.Dice;
 using GaeBullBing.Presentation.Game;
 using UnityEngine;
+
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
 using UnityEngine.UI;
 
 namespace GaeBullBing.Presentation.UI
@@ -17,15 +20,113 @@ namespace GaeBullBing.Presentation.UI
         private Text rewardText;
         private Button[] slotButtons;
         private int selectedSlot;
-        private DiceState pendingReward;
+        
+        private Action pendingRewardCompleted;
+        private bool replacementOpen;
+        private DeveloperConsoleView developerConsole;
+private DiceState pendingReward;
 
         public void Initialize(GameController gameController, DiceHudView diceHud)
         {
             controller = gameController;
-            hud = diceHud;
+            
+            developerConsole = FindFirstObjectByType<DeveloperConsoleView>(FindObjectsInactive.Include);
+hud = diceHud;
             if (loadoutRoot == null) Build();
             Refresh();
         }
+
+private void Update()
+        {
+            var keyboard = Keyboard.current;
+            if (keyboard == null ||
+                developerConsole != null && (!developerConsole.GameplayInputEnabled || developerConsole.IsOpen))
+                return;
+
+            if (rewardOverlay != null && rewardOverlay.activeInHierarchy)
+            {
+                HandleRewardKeyboard(keyboard);
+                return;
+            }
+
+            if (loadoutRoot == null || !loadoutRoot.gameObject.activeInHierarchy)
+                return;
+
+            if (dropdown != null && dropdown.gameObject.activeInHierarchy)
+            {
+                if (keyboard.escapeKey.wasPressedThisFrame)
+                    CloseDropdown();
+                else if (Pressed(keyboard.digit1Key, keyboard.numpad1Key))
+                    InvokeActiveButton(dropdown, 0);
+                else if (Pressed(keyboard.digit2Key, keyboard.numpad2Key))
+                    InvokeActiveButton(dropdown, 1);
+                return;
+            }
+
+            if (Pressed(keyboard.digit1Key, keyboard.numpad1Key))
+                InvokeButton(slotButtons, 0);
+            else if (Pressed(keyboard.digit2Key, keyboard.numpad2Key))
+                InvokeButton(slotButtons, 1);
+        }
+
+private void HandleRewardKeyboard(Keyboard keyboard)
+        {
+            var actions = rewardOverlay.transform.Find("Actions");
+            if (replacementOpen)
+            {
+                if (keyboard.escapeKey.wasPressedThisFrame)
+                {
+                    ShowLapReward(pendingReward, pendingRewardCompleted);
+                    return;
+                }
+
+                if (Pressed(keyboard.digit1Key, keyboard.numpad1Key)) InvokeActiveButton(actions, 0);
+                else if (Pressed(keyboard.digit2Key, keyboard.numpad2Key)) InvokeActiveButton(actions, 1);
+                else if (Pressed(keyboard.digit3Key, keyboard.numpad3Key)) InvokeActiveButton(actions, 2);
+                else if (Pressed(keyboard.digit4Key, keyboard.numpad4Key)) InvokeActiveButton(actions, 3);
+                return;
+            }
+
+            if (Pressed(keyboard.digit1Key, keyboard.numpad1Key))
+                InvokeButton(actions.Find("Acquire")?.GetComponent<Button>());
+            else if (Pressed(keyboard.digit2Key, keyboard.numpad2Key))
+                InvokeButton(actions.Find("Decline")?.GetComponent<Button>());
+        }
+
+private void CloseDropdown()
+        {
+            if (dropdown == null) return;
+            dropdown.gameObject.SetActive(false);
+            SetSelectedSlot(-1);
+            hud.SetDiceSelectionOpen(false);
+            if (UnityEngine.EventSystems.EventSystem.current != null)
+                UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(null);
+        }
+
+        private static bool Pressed(KeyControl main, KeyControl numpad) =>
+            main.wasPressedThisFrame || numpad.wasPressedThisFrame;
+
+        private static void InvokeButton(IReadOnlyList<Button> buttons, int index)
+        {
+            if (buttons == null || index < 0 || index >= buttons.Count) return;
+            InvokeButton(buttons[index]);
+        }
+
+        private static void InvokeButton(Button button)
+        {
+            if (button != null && button.gameObject.activeInHierarchy && button.interactable)
+                button.onClick.Invoke();
+        }
+
+        private static void InvokeActiveButton(Transform root, int index)
+        {
+            if (root == null || index < 0) return;
+            var buttons = root.GetComponentsInChildren<Button>(false);
+            if (index < buttons.Length) InvokeButton(buttons[index]);
+        }
+
+
+
 
 public void SetVisible(bool visible)
         {
@@ -65,7 +166,10 @@ public void SetVisible(bool visible)
 
 public void ShowLapReward(DiceState reward, Action completed)
         {
-            pendingReward = reward;
+            
+            pendingRewardCompleted = completed;
+            replacementOpen = false;
+pendingReward = reward;
             rewardOverlay.SetActive(true);
             rewardText.text = $"완주 보상\n\n{reward.DisplayName}\n{FormatFaces(reward)}\n{reward.PassiveDescription}";
             var actions = rewardOverlay.transform.Find("Actions");
@@ -80,7 +184,7 @@ public void ShowLapReward(DiceState reward, Action completed)
             acquire.GetComponent<RectTransform>().sizeDelta = new Vector2(210, 72);
             decline.GetComponent<RectTransform>().sizeDelta = new Vector2(210, 72);
             acquire.GetComponentInChildren<Text>().text = "획득하기";
-            decline.GetComponentInChildren<Text>().text = "보상 포기";
+            decline.GetComponentInChildren<Text>().text = "타워 강화";
             acquire.GetComponent<Image>().color = new Color(.78f, .53f, .17f);
             decline.GetComponent<Image>().color = new Color(.25f, .27f, .31f);
             acquire.GetComponentInChildren<Text>().color = Color.white;
@@ -103,8 +207,9 @@ public void ShowLapReward(DiceState reward, Action completed)
             });
         }
 
-private void ShowReplacement(Action completed)
+        private void ShowReplacement(Action completed)
         {
+            replacementOpen = true;
             var inventory = controller.State.DiceInventory.Dice;
             rewardText.text = $"인벤토리가 가득 찼습니다.\n교체할 주사위를 선택하세요.\n\n{pendingReward.DisplayName}\n{FormatFaces(pendingReward)}";
             var actions = rewardOverlay.transform.Find("Actions");
@@ -143,7 +248,10 @@ private void ShowReplacement(Action completed)
         private void CloseReward(Action completed)
         {
             rewardOverlay.SetActive(false);
-            pendingReward = null;
+            
+            pendingRewardCompleted = null;
+            replacementOpen = false;
+pendingReward = null;
             hud.RefreshDiceFaces();
             completed?.Invoke();
         }
@@ -285,7 +393,7 @@ private void ShowDropdown(int slot)
             actionLayout.childControlHeight = false;
             var take = CreateButton(actionRect, "획득하기", new Color(.78f, .53f, .17f), new Vector2(210, 72));
             take.name = "Acquire";
-            var skip = CreateButton(actionRect, "보상 포기", new Color(.25f, .27f, .31f), new Vector2(210, 72));
+            var skip = CreateButton(actionRect, "타워 강화", new Color(.25f, .27f, .31f), new Vector2(210, 72));
             skip.name = "Decline";
             rewardOverlay.SetActive(false);
         }
