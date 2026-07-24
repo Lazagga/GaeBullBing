@@ -50,9 +50,13 @@ namespace GaeBullBing.Core.Towers
                 }
             }
 
-            var mapMultiplier = Math.Max(0f, 1f + damageRateBonus);
+            // 공격력 배율 업그레이드는 타일/완주 배율과 같은 배율 묶음에서 합산한다.
+            // 예: 3배 업그레이드 + 50% 맵 보너스 = 3.5배.
+            var combinedDamageMultiplier = Math.Max(
+                0f,
+                damage.AdditiveMultiplierFactor + damageRateBonus);
             var resolvedDamage = damage.Set ??
-                (definition.Damage + damage.Add) * damage.Factor * mapMultiplier +
+                (definition.Damage + damage.Add) * combinedDamageMultiplier +
                 postMultiplierDamageBonus;
             var resolvedRange = range.Resolve(definition.Range);
             var resolvedTargets = targets.Resolve(definition.TargetCount);
@@ -66,7 +70,7 @@ namespace GaeBullBing.Core.Towers
             var formula = damage.Set.HasValue
                 ? Format(damage.Set.Value)
                 : $"({Format(definition.Damage)} + {Format(damage.Add)}) * " +
-                  $"{Format(damage.Factor * mapMultiplier * 100f)}% + " +
+                  $"{Format(combinedDamageMultiplier * 100f)}% + " +
                   $"{postMultiplierDamageBonus}";
             return new TowerStatCalculation(stats, formula);
         }
@@ -90,8 +94,11 @@ namespace GaeBullBing.Core.Towers
         {
             public float Add;
             public float Multiply;
+            public float MultiplySum;
+            public int MultiplyCount;
             public float? Set;
             public float Factor => Multiply == 0f ? 1f : Multiply;
+            public float AdditiveMultiplierFactor => MultiplyCount == 0 ? 1f : MultiplySum;
 
             public void Apply(TowerStatModifier modifier)
             {
@@ -99,7 +106,11 @@ namespace GaeBullBing.Core.Towers
                 if (string.Equals(modifier.Operation, "set", StringComparison.OrdinalIgnoreCase))
                     Set = modifier.Value;
                 else if (string.Equals(modifier.Operation, "multiply", StringComparison.OrdinalIgnoreCase))
+                {
                     Multiply *= modifier.Value;
+                    MultiplySum += modifier.Value;
+                    MultiplyCount++;
+                }
                 else
                     Add += modifier.Value;
             }

@@ -467,7 +467,7 @@ namespace GaeBullBing.Tests.EditMode
         }
 
         [Test]
-        public void TowerDamage_AppliesMultipliersBeforeFlatBonuses()
+        public void TowerDamage_AddsUpgradeAndMapMultipliersBeforeFlatBonuses()
         {
             var state = new GameState();
             var session = CreateSession(state);
@@ -500,7 +500,7 @@ namespace GaeBullBing.Tests.EditMode
 
             var results = session.ResolveTowerCombat(new[] { definition }, new[] { upgrade });
 
-            Assert.That(results[0].Damage, Is.EqualTo(48));
+            Assert.That(results[0].Damage, Is.EqualTo(40));
             Object.DestroyImmediate(upgrade);
             Object.DestroyImmediate(definition);
         }
