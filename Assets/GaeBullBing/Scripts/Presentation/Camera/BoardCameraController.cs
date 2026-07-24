@@ -1,5 +1,6 @@
 using System.Collections;
 using GaeBullBing.Presentation.Board;
+using GaeBullBing.Presentation.Monsters;
 using UnityEngine;
 
 namespace GaeBullBing.Presentation.Camera
@@ -32,6 +33,7 @@ namespace GaeBullBing.Presentation.Camera
         private UnityEngine.Camera controlledCamera;
         private Vector3 overviewPosition;
         private PlayerBoardView followTarget;
+        private MonsterBoardView followMonsterTarget;
         private Transform followTransform;
         private int transitionRevision;
         private int lastScreenWidth;
@@ -61,14 +63,17 @@ namespace GaeBullBing.Presentation.Camera
             if (Screen.width != lastScreenWidth || Screen.height != lastScreenHeight)
             {
                 RefreshResponsiveOverview();
-                if (followTarget == null && followTransform == null) controlledCamera.orthographicSize = overviewSize;
+                if (followTarget == null && followMonsterTarget == null && followTransform == null)
+                    controlledCamera.orthographicSize = overviewSize;
             }
-            if (followTarget == null && followTransform == null)
+            if (followTarget == null && followMonsterTarget == null && followTransform == null)
                 return;
 
             var followPosition = followTarget != null
                 ? followTarget.CameraFollowPosition
-                : followTransform.position;
+                : followMonsterTarget != null
+                    ? followMonsterTarget.CameraFollowPosition
+                    : followTransform.position;
             var targetPosition = new Vector3(followPosition.x, followPosition.y, transform.position.z);
             transform.position = Vector3.Lerp(transform.position, targetPosition, Time.deltaTime * followSpeed);
         }
@@ -77,6 +82,7 @@ namespace GaeBullBing.Presentation.Camera
         {
             var revision = ++transitionRevision;
             followTarget = target;
+            followMonsterTarget = null;
             followTransform = null;
             var followPosition = target.CameraFollowPosition;
             yield return TransitionTo(
@@ -89,8 +95,11 @@ namespace GaeBullBing.Presentation.Camera
         {
             var revision = ++transitionRevision;
             followTarget = null;
-            followTransform = target;
-            var position = target.position;
+            followMonsterTarget = target != null ? target.GetComponent<MonsterBoardView>() : null;
+            followTransform = followMonsterTarget == null ? target : null;
+            var position = followMonsterTarget != null
+                ? followMonsterTarget.CameraFollowPosition
+                : target.position;
             yield return TransitionTo(
                 new Vector3(position.x, position.y, transform.position.z),
                 focusSize,
@@ -101,6 +110,7 @@ namespace GaeBullBing.Presentation.Camera
         {
             var revision = ++transitionRevision;
             followTarget = null;
+            followMonsterTarget = null;
             followTransform = null;
             var position = boardView.GetWorldPosition(tileIndex);
             yield return TransitionTo(
@@ -113,6 +123,7 @@ namespace GaeBullBing.Presentation.Camera
         {
             var revision = ++transitionRevision;
             followTarget = null;
+            followMonsterTarget = null;
             followTransform = null;
             yield return TransitionTo(overviewPosition, overviewSize, revision);
         }

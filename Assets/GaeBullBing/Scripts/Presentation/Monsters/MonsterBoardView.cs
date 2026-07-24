@@ -39,6 +39,7 @@ private SpriteRenderer healthFillRenderer;
         private Vector3 transitionOffset;
 
         public int InstanceId { get; private set; }
+        public Vector3 CameraFollowPosition { get; private set; }
         public Vector3 VisualCenterPosition => spriteRenderer != null
             ? spriteRenderer.bounds.center
             : transform.position;
@@ -68,6 +69,7 @@ private SpriteRenderer healthFillRenderer;
             isBoss = boss;
             ApplyDirectionForDeparture(tileIndex);
             transform.position = GetStandingPosition(tileIndex);
+            CameraFollowPosition = GetCameraTilePosition(tileIndex);
             shadowGroundPosition = GetShadowPosition(tileIndex);
             shadow = BoardCharacterShadow.Create(transform,
                 spriteRenderer != null ? spriteRenderer.sortingLayerID : 0);
@@ -190,6 +192,7 @@ if (healthFillRenderer != null) healthFillRenderer.enabled = visible;
             if (!isMoving && boardView != null)
             {
                 transform.position = GetStandingPosition(CurrentTileIndex);
+                CameraFollowPosition = GetCameraTilePosition(CurrentTileIndex);
                 shadowGroundPosition = GetShadowPosition(CurrentTileIndex);
             }
 
@@ -272,6 +275,7 @@ public void UpdateStatus(MonsterState state)
             {
                 isMoving = false;
                 CurrentTileIndex = startTileIndex;
+                CameraFollowPosition = GetCameraTilePosition(startTileIndex);
                 ApplyBossDirection(startTileIndex, false);
                 transform.position = GetStandingPosition(startTileIndex);
                 shadowGroundPosition = GetShadowPosition(startTileIndex);
@@ -297,6 +301,10 @@ public void UpdateStatus(MonsterState state)
                 }
                 var smooth = Mathf.SmoothStep(0f, 1f, progress);
                 var position = Vector3.Lerp(from, to, smooth);
+                CameraFollowPosition = Vector3.Lerp(
+                    GetCameraTilePosition(startTileIndex),
+                    GetCameraTilePosition(targetTileIndex),
+                    smooth);
                 position.y += .45f + Mathf.Sin(progress * Mathf.PI) * .25f;
                 transform.position = position;
                 shadowGroundPosition = Vector3.Lerp(from, to, smooth) - visualHeightOffset;
@@ -305,6 +313,7 @@ public void UpdateStatus(MonsterState state)
 
             var previousTileIndex = CurrentTileIndex;
             CurrentTileIndex = targetTileIndex;
+            CameraFollowPosition = GetCameraTilePosition(targetTileIndex);
             TileChanged?.Invoke(previousTileIndex, targetTileIndex);
             ApplyBossDirection(targetTileIndex, false);
             transform.position = to;
@@ -348,6 +357,9 @@ public void UpdateStatus(MonsterState state)
         {
             return boardView.GetWorldPosition(tileIndex) + GetTileVisualOffset(tileIndex);
         }
+
+        private Vector3 GetCameraTilePosition(int tileIndex) =>
+            boardView.GetWorldPosition(tileIndex);
 
         private Vector3 GetTileVisualOffset(int tileIndex)
         {
