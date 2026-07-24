@@ -326,9 +326,11 @@ private void SpreadTileField(
             ICollection<TowerAttackResult> results)
         {
             var appliesKnockback = HasEffect(sourceTower, TowerEffectCatalog.Knockback);
+            var hitMonster = false;
             foreach (var monster in new List<MonsterState>(state.Monsters))
             {
                 if (monster.IsDead || monster.CurrentTileIndex != sourceTower.StoneTileIndex) continue;
+                hitMonster = true;
 
                 var fromTile = monster.CurrentTileIndex;
                 var actualDamage = monster.ReceiveDamage(damage, state.Difficulty);
@@ -361,6 +363,18 @@ private void SpreadTileField(
                 foreach (var destinationResult in destinationResults)
                     results.Add(destinationResult);
             }
+
+            // 몬스터가 없는 타일도 돌의 이동 순서에는 포함되어야 한다.
+            // 이 마커가 없으면 해당 돌의 공격 결과가 하나도 생성되지 않아
+            // 프레젠터가 이동/퇴장 애니메이션을 실행하지 못하고 화면에 남을 수 있다.
+            if (!hitMonster)
+                results.Add(new TowerAttackResult(
+                    sourceTower.InstanceId,
+                    -1,
+                    0f,
+                    false,
+                    targetTileIndex: sourceTower.StoneTileIndex,
+                    visualKind: TowerAttackVisualKind.RollingStone));
         }
 
         private static void ResolveKnockbackDestination(

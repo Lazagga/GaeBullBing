@@ -77,59 +77,68 @@ namespace GaeBullBing.Presentation.Towers
                 var tower = tile.Tower;
                 if (!views.TryGetValue(tower.InstanceId, out var renderer)) continue;
 
-                renderer.gameObject.SetActive(true);
-                renderer.color = Color.white;
-                SetStoneScale(renderer, diameter);
-                var previousPosition = renderer.transform.position;
-                foreach (var tileIndex in tower.StoneTraversalTiles)
+                try
                 {
-                    var groundPosition = boardView.GetWorldPosition(tileIndex);
-                    var position = groundPosition + visualOffset;
-                    yield return MoveStone(renderer, previousPosition, position, moveDuration,
-                        false, false, groundPosition, tileIndex);
-                    previousPosition = position;
-                    if (resolvedResults != null && playAttack != null)
-                        for (var resultIndex = 0; resultIndex < resolvedResults.Count; resultIndex++)
-                        {
-                            if (consumedResultIndices != null && consumedResultIndices.Contains(resultIndex)) continue;
-                            var result = resolvedResults[resultIndex];
-                            if (result.VisualKind != TowerAttackVisualKind.RollingStone ||
-                                result.TowerInstanceId != tower.InstanceId || result.TargetTileIndex != tileIndex) continue;
-                            consumedResultIndices?.Add(resultIndex);
-                            yield return playAttack(result);
-                        }
-                }
+                    renderer.gameObject.SetActive(true);
+                    renderer.color = Color.white;
+                    SetStoneScale(renderer, diameter);
+                    var previousPosition = renderer.transform.position;
+                    foreach (var tileIndex in tower.StoneTraversalTiles)
+                    {
+                        var groundPosition = boardView.GetWorldPosition(tileIndex);
+                        var position = groundPosition + visualOffset;
+                        yield return MoveStone(renderer, previousPosition, position, moveDuration,
+                            false, false, groundPosition, tileIndex);
+                        previousPosition = position;
+                        if (resolvedResults != null && playAttack != null)
+                            for (var resultIndex = 0; resultIndex < resolvedResults.Count; resultIndex++)
+                            {
+                                if (consumedResultIndices != null &&
+                                    consumedResultIndices.Contains(resultIndex)) continue;
+                                var result = resolvedResults[resultIndex];
+                                if (result.VisualKind != TowerAttackVisualKind.RollingStone ||
+                                    result.TowerInstanceId != tower.InstanceId ||
+                                    result.TargetTileIndex != tileIndex) continue;
+                                consumedResultIndices?.Add(resultIndex);
+                                yield return playAttack(result);
+                            }
+                    }
 
-                if (tower.StoneExitAnimation == StoneExitAnimation.FallOffBoard)
-                {
-                    var lastTileIndex = tower.StoneTraversalTiles[tower.StoneTraversalTiles.Count - 1];
-                    var cornerGround = boardView.GetWorldPosition(lastTileIndex);
-                    var previousGround = tower.StoneTraversalTiles.Count > 1
-                        ? boardView.GetWorldPosition(tower.StoneTraversalTiles[tower.StoneTraversalTiles.Count - 2])
-                        : boardView.GetWorldPosition(tile.Index);
-                    var exitDirection = cornerGround - previousGround;
-                    if (exitDirection.sqrMagnitude < .001f) exitDirection = Vector3.down;
-                    var outsideGround = cornerGround + exitDirection;
-                    var outsidePosition = outsideGround + visualOffset;
-                    yield return MoveStone(renderer, previousPosition, outsidePosition, moveDuration,
-                        false, false, outsideGround, lastTileIndex);
-                    var fallTarget = outsidePosition + Vector3.down * fallDistance;
-                    yield return MoveStone(renderer, outsidePosition, fallTarget, exitDuration,
-                        false, true, outsideGround, lastTileIndex);
+                    if (tower.StoneExitAnimation == StoneExitAnimation.FallOffBoard)
+                    {
+                        var lastTileIndex = tower.StoneTraversalTiles[tower.StoneTraversalTiles.Count - 1];
+                        var cornerGround = boardView.GetWorldPosition(lastTileIndex);
+                        var previousGround = tower.StoneTraversalTiles.Count > 1
+                            ? boardView.GetWorldPosition(
+                                tower.StoneTraversalTiles[tower.StoneTraversalTiles.Count - 2])
+                            : boardView.GetWorldPosition(tile.Index);
+                        var exitDirection = cornerGround - previousGround;
+                        if (exitDirection.sqrMagnitude < .001f) exitDirection = Vector3.down;
+                        var outsideGround = cornerGround + exitDirection;
+                        var outsidePosition = outsideGround + visualOffset;
+                        yield return MoveStone(renderer, previousPosition, outsidePosition, moveDuration,
+                            false, false, outsideGround, lastTileIndex);
+                        var fallTarget = outsidePosition + Vector3.down * fallDistance;
+                        yield return MoveStone(renderer, outsidePosition, fallTarget, exitDuration,
+                            false, true, outsideGround, lastTileIndex);
+                    }
+                    else if (tower.StoneExitAnimation == StoneExitAnimation.ShrinkOnZeroDamage &&
+                             tower.StoneExitTileIndex >= 0)
+                    {
+                        var targetGround = boardView.GetWorldPosition(tower.StoneExitTileIndex);
+                        var target = targetGround + visualOffset;
+                        yield return MoveStone(renderer, previousPosition, target, exitDuration,
+                            true, true, targetGround, tower.StoneExitTileIndex);
+                    }
                 }
-                else if (tower.StoneExitAnimation == StoneExitAnimation.ShrinkOnZeroDamage &&
-                         tower.StoneExitTileIndex >= 0)
+                finally
                 {
-                    var targetGround = boardView.GetWorldPosition(tower.StoneExitTileIndex);
-                    var target = targetGround + visualOffset;
-                    yield return MoveStone(renderer, previousPosition, target, exitDuration,
-                        true, true, targetGround, tower.StoneExitTileIndex);
+                    // 공격 연출이나 씬 전환이 코루틴을 중단해도 돌이 중간에 남지 않게 정리한다.
+                    if (renderer != null) renderer.gameObject.SetActive(false);
+                    tower.StoneTraversalTiles.Clear();
+                    tower.StoneExitAnimation = StoneExitAnimation.None;
+                    tower.StoneExitTileIndex = -1;
                 }
-
-                renderer.gameObject.SetActive(false);
-                tower.StoneTraversalTiles.Clear();
-                tower.StoneExitAnimation = StoneExitAnimation.None;
-                tower.StoneExitTileIndex = -1;
             }
         }
 

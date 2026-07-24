@@ -881,11 +881,41 @@ Assert.That(oppositeTile.CurrentHealth, Is.EqualTo(100f));
 
             var rollingHitCount = 0;
             foreach (var result in results)
-                if (result.VisualKind == GaeBullBing.Core.Towers.TowerAttackVisualKind.RollingStone)
+                if (result.VisualKind == GaeBullBing.Core.Towers.TowerAttackVisualKind.RollingStone &&
+                    result.TargetInstanceId == target.InstanceId)
                     rollingHitCount++;
             Assert.That(target.CurrentTileIndex, Is.EqualTo(0));
             Assert.That(rollingHitCount, Is.EqualTo(8));
             Assert.That(target.CurrentHealth, Is.EqualTo(148f));
+        }
+
+        [Test]
+        public void RollingStone_EmitsMovementResultsWhenNoMonsterIsHit()
+        {
+            var state = CreateCombatState();
+            state.Board.Tiles[5].Tower = null;
+            var tower = new GaeBullBing.Core.Towers.TowerState
+            {
+                InstanceId = 99,
+                DefinitionId = "TOW_03",
+                StoneActive = true,
+                StoneTileIndex = 8,
+                StoneBaseDamage = 10,
+                StoneDamageMultiplier = 1f
+            };
+            state.Board.Tiles[8].Tower = tower;
+            var results = new System.Collections.Generic.List<GaeBullBing.Core.Towers.TowerAttackResult>();
+
+            new GaeBullBing.Core.Towers.TowerEffectService().ResolveStone(state, tower, results);
+
+            Assert.That(tower.StoneTraversalTiles.Count, Is.GreaterThan(0));
+            Assert.That(results.Count, Is.EqualTo(tower.StoneTraversalTiles.Count));
+            foreach (var result in results)
+            {
+                Assert.That(result.VisualKind,
+                    Is.EqualTo(GaeBullBing.Core.Towers.TowerAttackVisualKind.RollingStone));
+                Assert.That(result.TargetInstanceId, Is.EqualTo(-1));
+            }
         }
 
         [Test]
