@@ -14,7 +14,7 @@ public void Initialize(int hiddenCount)
             text.fontSize = 48;
             text.color = new Color(1f, .25f, .15f);
             var renderer = GetComponent<MeshRenderer>();
-            renderer.sortingOrder = 30;
+            renderer.sortingOrder = 32760;
         }
 
 

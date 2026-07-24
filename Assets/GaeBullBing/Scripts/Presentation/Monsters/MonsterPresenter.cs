@@ -26,7 +26,6 @@ namespace GaeBullBing.Presentation.Monsters
         [SerializeField] private Sprite crowFlyingFrontSprite;
         [SerializeField] private Sprite crowFlyingBackSprite;
         [SerializeField] private Sprite bossFeatherSprite;
-        [SerializeField] private MonsterDefinition[] monsterDefinitions;
 
         private readonly Dictionary<int, MonsterBoardView> views = new();
         private readonly Dictionary<int, MonsterState> states = new();
@@ -34,7 +33,6 @@ namespace GaeBullBing.Presentation.Monsters
         private readonly Dictionary<int, OverflowIndicatorView> indicators = new();
         private int playerTileIndex;
         private bool hasPlayer;
-        public MonsterDefinition[] MonsterDefinitions => monsterDefinitions;
         public bool TryGetViewTransform(int instanceId, out Transform viewTransform)
         {
             if (views.TryGetValue(instanceId, out var view))
@@ -90,6 +88,22 @@ view.UpdateHealth(state.CurrentHealth, state.MaxHealth);
             views.Add(state.InstanceId, view);
             states.Add(state.InstanceId, state);
             displayedHealth[state.InstanceId] = state.CurrentHealth;
+        }
+
+        public IEnumerator PlayBossSpawnEntrance(int instanceId)
+        {
+            if (views.TryGetValue(instanceId, out var view))
+            {
+                view.PrepareSpawnEntrance();
+                yield return view.PlaySpawnEntrance();
+            }
+        }
+
+        public IEnumerator SpawnWithEntrance(MonsterState state)
+        {
+            Spawn(state);
+            if (state != null && state.IsBoss)
+                yield return PlayBossSpawnEntrance(state.InstanceId);
         }
 
         private void GetMonsterSprites(string definitionId, out Sprite frontSprite, out Sprite backSprite,
@@ -250,7 +264,17 @@ view.UpdateHealth(health, state.MaxHealth);
         {
             var occupants = new List<MonsterBoardView>();
             foreach (var pair in views) if (pair.Value.CurrentTileIndex == tileIndex) occupants.Add(pair.Value);
-            occupants.Sort((a,b) => a.InstanceId.CompareTo(b.InstanceId));
+            occupants.Sort((left, right) =>
+            {
+                var leftBoss = states.TryGetValue(left.InstanceId, out var leftState) &&
+                               leftState.IsBoss;
+                var rightBoss = states.TryGetValue(right.InstanceId, out var rightState) &&
+                                rightState.IsBoss;
+                var bossOrder = rightBoss.CompareTo(leftBoss);
+                return bossOrder != 0
+                    ? bossOrder
+                    : left.InstanceId.CompareTo(right.InstanceId);
+            });
             var playerHere = hasPlayer && playerTileIndex == tileIndex;
             var visibleMonsters = Mathf.Min(occupants.Count, playerHere ? 3 : 4);
             var totalVisible = visibleMonsters + (playerHere ? 1 : 0);
@@ -277,7 +301,7 @@ private void UpdateOverflow(int tileIndex, List<MonsterBoardView> occupants, int
 
             var go = new GameObject($"Overflow {tileIndex}");
             go.transform.SetParent(transform, false);
-            go.transform.position = boardView.GetWorldPosition(tileIndex) + new Vector3(0, .72f);
+            go.transform.position = boardView.GetWorldPosition(tileIndex) + new Vector3(0, 1.08f);
             var indicator = go.AddComponent<OverflowIndicatorView>();
             indicator.Initialize(occupants.Count - visibleCount);
             indicators[tileIndex] = indicator;

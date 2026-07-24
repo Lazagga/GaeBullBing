@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using GaeBullBing.Presentation.Game;
+using GaeBullBing.Presentation.Board;
 using GaeBullBing.Presentation.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -58,14 +59,27 @@ namespace GaeBullBing.Editor
             var monsterBox = CreateUiObject("Monster Background", root.transform);
             var monsterImage = monsterBox.AddComponent<Image>();
             monsterImage.color = new Color(0f, 0f, 0f, .22f);
-            monsterImage.raycastTarget = false;
+            monsterImage.raycastTarget = true;
             SetRect(monsterBox.GetComponent<RectTransform>(), new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(14f, 40f), new Vector2(-28f, 178f), new Vector2(0f, 0f));
+            var monsterMask = monsterBox.AddComponent<RectMask2D>();
+            monsterMask.padding = Vector4.zero;
+            monsterBox.AddComponent<BoardPointerPassthrough>();
+            var monsterScroll = monsterBox.AddComponent<ScrollRect>();
+            monsterScroll.viewport = monsterBox.GetComponent<RectTransform>();
+            monsterScroll.horizontal = false;
+            monsterScroll.vertical = true;
+            monsterScroll.movementType = ScrollRect.MovementType.Clamped;
+            monsterScroll.inertia = true;
+            monsterScroll.scrollSensitivity = 28f;
 
             var monsters = CreateText("Monster Information", monsterBox.transform, 27, FontStyle.Normal, TextAnchor.UpperLeft);
-            monsters.resizeTextForBestFit = true;
-            monsters.resizeTextMinSize = 11;
-            monsters.resizeTextMaxSize = 27;
-            SetRect(monsters.rectTransform, Vector2.zero, Vector2.one, new Vector2(12f, 12f), new Vector2(-24f, -24f), Vector2.zero);
+            monsters.resizeTextForBestFit = false;
+            monsters.verticalOverflow = VerticalWrapMode.Overflow;
+            SetRect(monsters.rectTransform, new Vector2(0f, 1f), Vector2.one, new Vector2(0f, -12f), new Vector2(-24f, 0f), new Vector2(.5f, 1f));
+            var monsterFitter = monsters.gameObject.AddComponent<ContentSizeFitter>();
+            monsterFitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            monsterFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            monsterScroll.content = monsters.rectTransform;
 
             var hint = CreateText("Hint", root.transform, 21, FontStyle.Italic, TextAnchor.MiddleRight);
             hint.text = "다른 타일 선택 · 바깥 클릭으로 닫기";

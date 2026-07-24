@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: DICE_VIOLET
   m_EditorClassIdentifier: GaeBullBing.Core::GaeBullBing.Core.Data.DiceDefinition
   id: DICE_VIOLET
-  displayName: "\uBC88\uAC1C \uC8FC\uC0AC\uC704"
-  grade: 2
-  faces: 020000000200000003000000030000000600000006000000
-  color: {r: 0.4627451, g: 0.21176471, b: 0.65882355, a: 1}
+  displayName: "\uC81C\uBE44\uAF43 \uC8FC\uC0AC\uC704"
+  grade: 3
+  faces: 030000000300000003000000060000000600000006000000
+  color: {r: 0.48235294, g: 0.12156863, b: 0.63529414, a: 1}

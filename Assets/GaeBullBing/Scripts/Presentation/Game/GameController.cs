@@ -26,17 +26,11 @@ namespace GaeBullBing.Presentation.Game
         [SerializeField] private PlayerBoardView playerView;
         [SerializeField] private DiceHudView diceHud;
         [SerializeField] private MonsterPresenter monsterPresenter;
-        [SerializeField] private MonsterDefinition defaultMonster;
         [SerializeField] private BoardDefinition boardDefinition;
-        [SerializeField] private MonsterDefinition[] monsterDefinitions;
-        [SerializeField] private TextAsset difficultyPatternJson;
-        [SerializeField] private DifficultyPatternData[] difficultyPatterns;
         [SerializeField] private BoardCameraController cameraController;
         [SerializeField] private RadialActionMenu radialMenu;
         [SerializeField] private CornerActionMenu cornerActionMenu;
         [SerializeField] private TowerPresenter towerPresenter;
-        [SerializeField] private TowerDefinition[] towerDefinitions;
-        [SerializeField] private TowerUpgradeDefinition[] towerUpgradeDefinitions;
         [SerializeField] private TileInfoPanelView tileInfoPanel;
         [SerializeField] private GameFlowView gameFlowView;
         [SerializeField, Min(0f)] private float diceRevealDelay = 0.35f;
@@ -44,6 +38,9 @@ namespace GaeBullBing.Presentation.Game
 
         private bool isBusy;
         private MonsterDatabase monsterDatabase;
+        private MonsterDefinition[] monsterDefinitions;
+        private TowerDefinition[] towerDefinitions;
+        private TowerUpgradeDefinition[] towerUpgradeDefinitions;
         private DifficultyService difficultyService;
         private int killsPerDifficultyLevel = 10;
         private float healthMultiplierPerDifficultyLevel = 1.15f;
@@ -136,6 +133,8 @@ private bool finishRoutineStarted;
             State.CurrentPhase = previousPhase;
             monsterPresenter.Spawn(monster);
             monsterPresenter.RefreshLayout();
+            if (monster.IsBoss)
+                StartCoroutine(monsterPresenter.PlayBossSpawnEntrance(monster.InstanceId));
             message = $"{definition.DisplayName} ({definition.Id})을 {tileIndex}번 타일에 소환했습니다.";
             return true;
         }
@@ -320,6 +319,30 @@ public bool ApplyConsoleUpgradeChoice(int choiceIndex, out string message)
         private void Awake()
         {
             Time.timeScale = 1f;
+            var monsterData = Resources.Load<MonsterDatabaseDefinition>(
+                "GaeBullBing/MonsterDatabase");
+            var towerData = Resources.Load<TowerDatabaseDefinition>(
+                "GaeBullBing/TowerDatabase");
+            var runtimeUpgradeDatabase = Resources.Load<TowerUpgradeDatabaseDefinition>(
+                "GaeBullBing/TowerUpgradeDatabase");
+            var difficultyData = Resources.Load<DifficultyDatabaseDefinition>(
+                "GaeBullBing/DifficultyDatabase");
+            if (!TryLoadRequiredGameData(
+                    monsterData, towerData, runtimeUpgradeDatabase, difficultyData,
+                    out var dataError))
+            {
+                Debug.LogError($"게임 데이터 초기화 실패: {dataError}\n" +
+                    "JSON 임포트를 완료하기 전에는 게임을 실행할 수 없습니다.", this);
+                enabled = false;
+                return;
+            }
+
+            monsterDefinitions = monsterData.Monsters;
+            towerDefinitions = towerData.Towers;
+            towerUpgradeDefinitions = runtimeUpgradeDatabase.Upgrades;
+            killsPerDifficultyLevel = difficultyData.KillsPerLevel;
+            healthMultiplierPerDifficultyLevel = difficultyData.HealthMultiplierPerLevel;
+            defensePerDifficultyLevel = difficultyData.DefensePerLevel;
             State = new GameState();
             Session = new GameSession(
                 State,
@@ -330,17 +353,10 @@ public bool ApplyConsoleUpgradeChoice(int choiceIndex, out string message)
                 new TowerService(),
                 new TowerCombatService());
             Session.StartNewGame(boardDefinition: boardDefinition);
-            if (monsterDefinitions == null || monsterDefinitions.Length == 0)
-                monsterDefinitions = monsterPresenter != null && monsterPresenter.MonsterDefinitions != null && monsterPresenter.MonsterDefinitions.Length > 0
-                    ? monsterPresenter.MonsterDefinitions
-                    : new[] { defaultMonster };
-            LoadDifficultyPatternsFromJson();
-            if (difficultyPatterns == null || difficultyPatterns.Length == 0)
-                difficultyPatterns = new[] { new DifficultyPatternData { MonsterIds = new[] { defaultMonster.Id } } };
             monsterDatabase = new MonsterDatabase(monsterDefinitions);
             var bossAppearanceLevel = FindBossDefinition()?.AppearanceWave ?? DifficultyService.FinalBossLevel;
             difficultyService = new DifficultyService(
-                difficultyPatterns,
+                difficultyData.Patterns,
                 killsPerDifficultyLevel,
                 healthMultiplierPerDifficultyLevel,
                 defensePerDifficultyLevel,
@@ -366,88 +382,60 @@ public bool ApplyConsoleUpgradeChoice(int choiceIndex, out string message)
                 tileInfoPanel = FindFirstObjectByType<TileInfoPanelView>(FindObjectsInactive.Include);
         }
 
-        private void LoadDifficultyPatternsFromJson()
+        private bool TryLoadRequiredGameData(
+            MonsterDatabaseDefinition monsters,
+            TowerDatabaseDefinition towers,
+            TowerUpgradeDatabaseDefinition upgrades,
+            DifficultyDatabaseDefinition difficulty,
+            out string error)
         {
-            if (difficultyPatternJson == null) return;
-            var source = JsonUtility.FromJson<DifficultyPatternDatabaseJson>(difficultyPatternJson.text);
-            if (source?.wave_patterns == null || source.wave_patterns.Length == 0)
+#if UNITY_EDITOR
+            var requiredJsonPaths = new[]
             {
-                Debug.LogError($"난이도 패턴 배열을 읽을 수 없습니다: {difficultyPatternJson.name}");
-                return;
-            }
-
-            if (source.wavedata == null || source.wavedata.Length == 0)
-            {
-                Debug.LogError($"공통 난이도 설정인 wavedata를 읽을 수 없습니다: {difficultyPatternJson.name}");
-                return;
-            }
-
-            var killsPerLevel = Mathf.Max(1, source.wavedata[0].required_kills);
-            var healthMultiplierPerLevel = source.wavedata[0].multiplier > 0f
-                ? source.wavedata[0].multiplier
-                : 1f;
-            killsPerDifficultyLevel = killsPerLevel;
-            healthMultiplierPerDifficultyLevel = healthMultiplierPerLevel;
-            defensePerDifficultyLevel = Mathf.Max(0f, source.wavedata[0].defense_per_wave);
-
-            System.Array.Sort(source.wave_patterns, (left, right) => left.level.CompareTo(right.level));
-            var knownMonsterIds = new HashSet<string>();
-            foreach (var monster in monsterDefinitions)
-                if (monster != null) knownMonsterIds.Add(monster.Id);
-
-            var converted = new List<DifficultyPatternData>(source.wave_patterns.Length);
-            var cumulativeRequiredKills = 0;
-            var cumulativeHealthMultiplier = 1f;
-            foreach (var pattern in source.wave_patterns)
-            {
-                if (pattern == null || pattern.spawn_pattern == null || pattern.spawn_pattern.Length == 0)
+                "Assets/GaeBullBing/Data/Json/Dice.json",
+                "Assets/GaeBullBing/Data/Json/Monster.json",
+                "Assets/GaeBullBing/Data/Json/Pattern.json",
+                "Assets/GaeBullBing/Data/Json/Tile.json",
+                "Assets/GaeBullBing/Data/Json/Tower.json",
+                "Assets/GaeBullBing/Data/Json/Upgrade.json"
+            };
+            foreach (var jsonPath in requiredJsonPaths)
+                if (UnityEditor.AssetDatabase.LoadAssetAtPath<TextAsset>(jsonPath) == null)
                 {
-                    Debug.LogError($"난이도 {pattern?.level ?? 0}의 spawn_pattern이 비어 있습니다.");
-                    continue;
+                    error = $"필수 JSON 파일이 없습니다: {jsonPath}";
+                    return false;
                 }
-
-                var valid = true;
-                foreach (var monsterId in pattern.spawn_pattern)
-                    if (!knownMonsterIds.Contains(monsterId))
-                    {
-                        Debug.LogError($"난이도 {pattern.level}가 존재하지 않는 몬스터를 참조합니다: {monsterId}");
-                        valid = false;
-                    }
-                if (!valid) continue;
-
-                converted.Add(new DifficultyPatternData
-                {
-                    RequiredKills = cumulativeRequiredKills,
-                    HealthMultiplier = cumulativeHealthMultiplier,
-                    MonsterIds = pattern.spawn_pattern
-                });
-                cumulativeRequiredKills += killsPerLevel;
-                cumulativeHealthMultiplier *= healthMultiplierPerLevel;
+#endif
+            if (boardDefinition == null || boardDefinition.Tiles == null ||
+                boardDefinition.Tiles.Length != BoardState.DefaultTileCount)
+            {
+                error = "Board.asset이 없거나 Tile.json의 36칸 보드 데이터가 유효하지 않습니다.";
+                return false;
             }
-
-            if (converted.Count > 0) difficultyPatterns = converted.ToArray();
-        }
-
-        [System.Serializable]
-        private sealed class DifficultyPatternDatabaseJson
-        {
-            public DifficultyCommonJson[] wavedata;
-            public DifficultyPatternJson[] wave_patterns;
-        }
-
-        [System.Serializable]
-        private sealed class DifficultyCommonJson
-        {
-            public int required_kills;
-            public float multiplier;
-            public float defense_per_wave;
-        }
-
-        [System.Serializable]
-        private sealed class DifficultyPatternJson
-        {
-            public int level;
-            public string[] spawn_pattern;
+            if (!DiceCatalog.TryInitialize(out error)) return false;
+            if (monsters == null || monsters.Monsters == null || monsters.Monsters.Length == 0)
+            {
+                error = "MonsterDatabase가 없습니다. Monster.json을 임포트하세요.";
+                return false;
+            }
+            if (towers == null || towers.Towers == null || towers.Towers.Length == 0)
+            {
+                error = "TowerDatabase가 없습니다. Tower.json을 임포트하세요.";
+                return false;
+            }
+            if (upgrades == null || upgrades.Upgrades == null || upgrades.Upgrades.Length == 0)
+            {
+                error = "TowerUpgradeDatabase가 없습니다. Upgrade.json을 임포트하세요.";
+                return false;
+            }
+            if (difficulty == null || difficulty.Patterns == null ||
+                difficulty.Patterns.Length == 0)
+            {
+                error = "DifficultyDatabase가 없습니다. Pattern.json을 임포트하세요.";
+                return false;
+            }
+            error = string.Empty;
+            return true;
         }
 
         private void Start()
@@ -635,18 +623,19 @@ public bool ApplyConsoleUpgradeChoice(int choiceIndex, out string message)
 
             var definition = FindTowerDefinition(tile.Tower.DefinitionId);
             if (definition == null) return featherDescription + $"[타워]\n정의 없음: {tile.Tower.DefinitionId}";
-            var stats = CalculateDisplayStats(definition, tile);
-            var damageFormula = BuildDamageFormula(definition, tile);
+            var calculation = CalculateDisplayStats(definition, tile);
+            var stats = calculation.CombatStats;
+            var damageFormula = calculation.DamageFormula;
             var bonusAttacks = Mathf.Max(
                 tile.Tower.BonusAttackCount, tile.Tower.PendingBonusAttackCount);
             var attackFormula = bonusAttacks > 0
-                ? $"{stats.attacks} + {bonusAttacks}"
-                : stats.attacks.ToString();
+                ? $"{stats.AttackCount} + {bonusAttacks}"
+                : stats.AttackCount.ToString();
             var builder = new StringBuilder();
             builder.AppendLine($"[타워] {definition.DisplayName}  T{tile.Tower.UpgradeTier}");
             builder.AppendLine($"속성: {GetElementName(definition.Element)}");
-            builder.AppendLine($"공격력 {stats.damage}  |  사거리 ±{stats.range}타일");
-            builder.AppendLine($"대상 {stats.targets}  |  공격 횟수 {attackFormula}");
+            builder.AppendLine($"\uACF5\uACA9\uB825: {stats.Damage}  |  \uC0AC\uAC70\uB9AC: {stats.Range}");
+            builder.AppendLine($"\uB300\uC0C1: {stats.TargetCount}  |  \uACF5\uACA9 \uD69F\uC218: {attackFormula}");
             builder.AppendLine($"\uACF5\uACA9\uB825 \uACC4\uC0B0: {damageFormula}");
             builder.AppendLine();
             builder.AppendLine("[적용된 업그레이드]");
@@ -688,69 +677,20 @@ public bool ApplyConsoleUpgradeChoice(int choiceIndex, out string message)
             return string.Join(", ", values);
         }
 
-        private string BuildDamageFormula(TowerDefinition definition, TileState tile)
+        private TowerStatCalculation CalculateDisplayStats(
+            TowerDefinition definition,
+            TileState tile)
         {
-            var upgradeAdd = 0f;
-            var upgradeMultiply = 1f;
-            float? damageSet = null;
-            foreach (var id in tile.Tower.AppliedUpgradeIds)
-            {
-                var upgrade = FindUpgradeDefinition(id);
-                if (upgrade == null) continue;
-                foreach (var modifier in upgrade.StatModifiers)
-                {
-                    if (!modifier.Stat.Equals("damage", System.StringComparison.OrdinalIgnoreCase) ||
-                        upgrade.Id == "UPG_ICE_T3_02" && modifier.Operation.Equals("Multiply", System.StringComparison.OrdinalIgnoreCase)) continue;
-                    if (modifier.Operation.Equals("Set", System.StringComparison.OrdinalIgnoreCase)) damageSet = modifier.Value;
-                    else if (modifier.Operation.Equals("Multiply", System.StringComparison.OrdinalIgnoreCase)) upgradeMultiply *= modifier.Value;
-                    else upgradeAdd += modifier.Value;
-                }
-            }
-            if (damageSet.HasValue) return $"{damageSet.Value:0.##}";
-            var mapMultiply = 1f + State.PermanentAllTowerDamageRateBonus +
+            var rateBonus = State.PermanentAllTowerDamageRateBonus +
                 State.GetPermanentTowerDamageRateBonus(definition.Element) +
                 State.GetPermanentLineTowerDamageRateBonus(MonsterService.GetLine(tile.Index)) +
                 GetLineAuraDamageRateBonus(tile);
-            var postUpgradeAdd = State.GetPermanentTowerDamageFlatBonus(definition.Element);
-            return $"({definition.Damage:0.##} + {upgradeAdd:0.##}) * {upgradeMultiply * mapMultiply * 100f:0.##}% + {postUpgradeAdd:0.##}";
-        }
-
-        private (int damage, int range, int targets, int attacks) CalculateDisplayStats(TowerDefinition definition, TileState tile)
-        {
-            var tower = tile.Tower;
-            var damageAdd = 0f; var damageMultiply = 1f;
-            var rangeAdd = 0f; var rangeMultiply = 1f;
-            var targetAdd = 0f; var targetMultiply = 1f;
-            var attackAdd = 0f; var attackMultiply = 1f;
-            float? damageSet = null, rangeSet = null, targetSet = null, attackSet = null;
-            foreach (var id in tower.AppliedUpgradeIds)
-            {
-                var upgrade = FindUpgradeDefinition(id); if (upgrade == null) continue;
-                foreach (var modifier in upgrade.StatModifiers)
-                {
-                    if (upgrade.Id == "UPG_ICE_T3_02" && modifier.Stat.Equals("damage", System.StringComparison.OrdinalIgnoreCase) && modifier.Operation.Equals("Multiply", System.StringComparison.OrdinalIgnoreCase)) continue;
-                    var multiply = modifier.Operation.Equals("Multiply", System.StringComparison.OrdinalIgnoreCase);
-                    var set = modifier.Operation.Equals("Set", System.StringComparison.OrdinalIgnoreCase);
-                    switch (modifier.Stat.ToLowerInvariant())
-                    {
-                        case "damage": if (set) damageSet = modifier.Value; else if (multiply) damageMultiply *= modifier.Value; else damageAdd += modifier.Value; break;
-                        case "range": if (set) rangeSet = modifier.Value; else if (multiply) rangeMultiply *= modifier.Value; else rangeAdd += modifier.Value; break;
-                        case "target_count": if (set) targetSet = modifier.Value; else if (multiply) targetMultiply *= modifier.Value; else targetAdd += modifier.Value; break;
-                        case "attack_count": if (set) attackSet = modifier.Value; else if (multiply) attackMultiply *= modifier.Value; else attackAdd += modifier.Value; break;
-                    }
-                }
-            }
-            return (
-                Mathf.Max(0, Mathf.RoundToInt(damageSet ??
-                    (definition.Damage + damageAdd) * damageMultiply *
-                    (1f + State.PermanentAllTowerDamageRateBonus +
-                     State.GetPermanentTowerDamageRateBonus(definition.Element) +
-                     State.GetPermanentLineTowerDamageRateBonus(MonsterService.GetLine(tile.Index)) +
-                    GetLineAuraDamageRateBonus(tile)) +
-                    State.GetPermanentTowerDamageFlatBonus(definition.Element))),
-                Mathf.Max(0, Mathf.RoundToInt(rangeSet ?? (definition.Range + rangeAdd) * rangeMultiply)),
-                Mathf.Max(1, Mathf.RoundToInt(targetSet ?? (definition.TargetCount + targetAdd) * targetMultiply)),
-                Mathf.Max(1, Mathf.RoundToInt(attackSet ?? (definition.AttackCount + attackAdd) * attackMultiply)));
+            return TowerStatCalculator.Calculate(
+                definition,
+                tile.Tower,
+                towerUpgradeDefinitions,
+                rateBonus,
+                State.GetPermanentTowerDamageFlatBonus(definition.Element));
         }
 
         private float GetLineAuraDamageRateBonus(TileState targetTile)
@@ -1051,7 +991,7 @@ public bool ApplyConsoleUpgradeChoice(int choiceIndex, out string message)
                     else
                     {
                         var boss = Session.SpawnMonster(bossDefinition, 1f);
-                        monsterPresenter.Spawn(boss);
+                        yield return monsterPresenter.SpawnWithEntrance(boss);
                     }
                 }
             }
@@ -1065,7 +1005,10 @@ public bool ApplyConsoleUpgradeChoice(int choiceIndex, out string message)
                 var definition = monsterDatabase.Get(monsterId);
                 var spawnedMonster = Session.SpawnMonster(definition,
                     difficultyService.GetHealthMultiplier(State.Difficulty));
-                monsterPresenter.Spawn(spawnedMonster);
+                if (spawnedMonster.IsBoss)
+                    yield return monsterPresenter.SpawnWithEntrance(spawnedMonster);
+                else
+                    monsterPresenter.Spawn(spawnedMonster);
             }
 
             if (State.IsGameOver)

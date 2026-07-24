@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Tilemaps;
@@ -68,7 +69,7 @@ namespace GaeBullBing.Presentation.Board
             SetHovered(nearest);
 
             if (!Mouse.current.leftButton.wasPressedThisFrame ||
-                EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+                IsPointerBlockedByUi(Mouse.current.position.ReadValue()))
                 return;
 
             if (selected != null)
@@ -79,6 +80,20 @@ namespace GaeBullBing.Presentation.Board
 
             if (nearest >= 0) inspected?.Invoke(nearest);
             else inspectionClosed?.Invoke();
+        }
+
+        private static bool IsPointerBlockedByUi(Vector2 screenPosition)
+        {
+            var eventSystem = EventSystem.current;
+            if (eventSystem == null) return false;
+
+            var pointer = new PointerEventData(eventSystem) { position = screenPosition };
+            var hits = new List<RaycastResult>();
+            eventSystem.RaycastAll(pointer, hits);
+            foreach (var hit in hits)
+                if (hit.gameObject.GetComponentInParent<BoardPointerPassthrough>() == null)
+                    return true;
+            return false;
         }
 
         public void EndSelection()

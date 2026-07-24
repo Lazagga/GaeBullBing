@@ -424,39 +424,16 @@ namespace GaeBullBing.Core.Game
             TileState tile,
             System.Collections.Generic.IReadOnlyList<TowerUpgradeDefinition> upgrades)
         {
-            var tower = tile.Tower;
-            var damageAdd = 0f; var damageMultiply = 1f;
-            var rangeAdd = 0f; var rangeMultiply = 1f;
-            var targetAdd = 0f; var targetMultiply = 1f;
-            var attackAdd = 0f; var attackMultiply = 1f;
-            float? damageSet = null, rangeSet = null, targetSet = null, attackSet = null;
-                foreach (var id in tower.AppliedUpgradeIds)
-                    foreach (var upgrade in upgrades ?? System.Array.Empty<TowerUpgradeDefinition>())
-                        if (upgrade != null && upgrade.Id == id)
-                            foreach (var modifier in upgrade.StatModifiers)
-                            {
-                                if (upgrade.Id == "UPG_ICE_T3_02" && modifier.Stat.Equals("damage", StringComparison.OrdinalIgnoreCase) && modifier.Operation.Equals("Multiply", StringComparison.OrdinalIgnoreCase)) continue;
-                                var multiply = string.Equals(modifier.Operation, "Multiply", StringComparison.OrdinalIgnoreCase);
-                                var set = string.Equals(modifier.Operation, "Set", StringComparison.OrdinalIgnoreCase);
-                                switch (modifier.Stat.ToLowerInvariant())
-                                {
-                                    case "damage": if (set) damageSet = modifier.Value; else if (multiply) damageMultiply *= modifier.Value; else damageAdd += modifier.Value; break;
-                                    case "range": if (set) rangeSet = modifier.Value; else if (multiply) rangeMultiply *= modifier.Value; else rangeAdd += modifier.Value; break;
-                                    case "target_count": if (set) targetSet = modifier.Value; else if (multiply) targetMultiply *= modifier.Value; else targetAdd += modifier.Value; break;
-                                    case "attack_count": if (set) attackSet = modifier.Value; else if (multiply) attackMultiply *= modifier.Value; else attackAdd += modifier.Value; break;
-                                }
-                            }
-            return new TowerCombatStats(
-                Math.Max(0, (int)Math.Round(damageSet ??
-                    (definition.Damage + damageAdd) * damageMultiply *
-                    (1f + State.PermanentAllTowerDamageRateBonus +
-                     State.GetPermanentTowerDamageRateBonus(definition.Element) +
-                     State.GetPermanentLineTowerDamageRateBonus(MonsterService.GetLine(tile.Index)) +
-                    GetLineAuraDamageRateBonus(tile)) +
-                    State.GetPermanentTowerDamageFlatBonus(definition.Element))),
-                Math.Max(0, (int)Math.Round(rangeSet ?? (definition.Range + rangeAdd) * rangeMultiply)),
-                Math.Max(1, (int)Math.Round(targetSet ?? (definition.TargetCount + targetAdd) * targetMultiply)),
-                Math.Max(1, (int)Math.Round(attackSet ?? (definition.AttackCount + attackAdd) * attackMultiply)));
+            var rateBonus = State.PermanentAllTowerDamageRateBonus +
+                State.GetPermanentTowerDamageRateBonus(definition.Element) +
+                State.GetPermanentLineTowerDamageRateBonus(MonsterService.GetLine(tile.Index)) +
+                GetLineAuraDamageRateBonus(tile);
+            return TowerStatCalculator.Calculate(
+                definition,
+                tile.Tower,
+                upgrades,
+                rateBonus,
+                State.GetPermanentTowerDamageFlatBonus(definition.Element)).CombatStats;
         }
 
         private float GetLineAuraDamageRateBonus(TileState targetTile)

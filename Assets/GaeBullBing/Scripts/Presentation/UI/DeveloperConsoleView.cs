@@ -23,13 +23,21 @@ namespace GaeBullBing.Presentation.UI
         private void Awake()
         {
             panel.SetActive(false); submitButton.onClick.AddListener(Submit);
+            var defaultFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            output.font = defaultFont;
+            input.textComponent.font = defaultFont;
             output.color = Color.white; output.fontSize = 22;
             input.textComponent.color = Color.white; input.textComponent.fontSize = 21;
             var inputBackground = input.GetComponent<Image>();
             if (inputBackground != null) inputBackground.color = new Color(.08f,.09f,.12f,1f);
             input.customCaretColor = true; input.caretColor = Color.white;
             input.selectionColor = new Color(.2f,.45f,.8f,.65f);
-            if (input.placeholder is Text placeholder) { placeholder.color = new Color(.7f,.7f,.7f,1f); placeholder.fontSize = 19; }
+            if (input.placeholder is Text placeholder)
+            {
+                placeholder.font = defaultFont;
+                placeholder.color = new Color(.7f,.7f,.7f,1f);
+                placeholder.fontSize = 19;
+            }
             ConfigureOutputScroll();
         }
 

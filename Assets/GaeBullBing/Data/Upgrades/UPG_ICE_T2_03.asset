@@ -14,9 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: GaeBullBing.Core::GaeBullBing.Core.Data.TowerUpgradeDefinition
   id: UPG_ICE_T2_03
   displayName: "TOW_02_\uC5BC\uC74C_T2_03"
-  description: "\uD53C\uD574\uB7C9\uC774 1.5\uBC30 \uC99D\uAC00\uD558\uBA70, \uD574\uB2F9
-    \uD0C0\uC77C \uB0B4 \uBAA8\uB4E0 \uC801\uC5D0\uAC8C \uB370\uBBF8\uC9C0\uB97C
-    \uC785\uD799\uB2C8\uB2E4."
+  description: "\uB450 \uBA85\uC758 \uB300\uC0C1\uC744 \uCD94\uAC00\uB85C \uACF5\uACA9\uD569\uB2C8\uB2E4."
   element: 2
   tier: 2
   weight: 1
@@ -24,9 +22,7 @@ MonoBehaviour:
   - Stat: damage
     Operation: add
     Value: 15
-  - Stat: damage
-    Operation: Multiply
-    Value: 1.5
-  effects:
-  - Id: aoe_tile
-    Value: 1
+  - Stat: target_count
+    Operation: add
+    Value: 2
+  effects: []

@@ -14,7 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: GaeBullBing.Core::GaeBullBing.Core.Data.TowerUpgradeDefinition
   id: UPG_ICE_T2_04
   displayName: "TOW_02_\uC5BC\uC74C_T2_04"
-  description: "\uB450 \uBA85\uC758 \uB300\uC0C1\uC744 \uCD94\uAC00\uB85C \uACF5\uACA9\uD569\uB2C8\uB2E4."
+  description: "\uC77C\uBC18 \uACF5\uACA9\uC744 \uC0AC\uAC70\uB9AC \uB0B4\uC758 \uBAA8\uB4E0
+    \uC801\uC5D0 \uB300\uD55C \uBC94\uC704\uACF5\uACA9\uC73C\uB85C \uC804\uD658\uD569\uB2C8\uB2E4."
   element: 2
   tier: 2
   weight: 1
@@ -22,7 +23,6 @@ MonoBehaviour:
   - Stat: damage
     Operation: add
     Value: 15
-  - Stat: target_count
-    Operation: add
-    Value: 2
-  effects: []
+  effects:
+  - Id: range_attack
+    Value: 1

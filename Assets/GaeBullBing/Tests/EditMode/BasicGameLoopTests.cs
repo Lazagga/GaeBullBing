@@ -95,10 +95,10 @@ namespace GaeBullBing.Tests.EditMode
             Assert.That(state.DiceInventory.Dice[1].Id, Is.EqualTo("DICE_BLACK"));
             Assert.That(session.CanRollDice, Is.True);
 
-            var fire = GaeBullBing.Core.Dice.DiceCatalog.GetReward(0);
-            Assert.That(session.StoreDiceReward(fire), Is.True);
+            var reward = GaeBullBing.Core.Dice.DiceCatalog.GetReward(0);
+            Assert.That(session.StoreDiceReward(reward), Is.True);
             Assert.That(session.QueueDiceEquip(0, 2), Is.True);
-            Assert.That(state.Dice[0].Id, Is.EqualTo("DICE_FIRE"));
+            Assert.That(state.Dice[0].Id, Is.EqualTo(reward.Id));
 
             Assert.That(session.QueueDiceEquip(0, 0), Is.True);
             session.CompleteRound();
@@ -107,7 +107,51 @@ namespace GaeBullBing.Tests.EditMode
             Assert.That(state.Dice[1].Id, Is.EqualTo("DICE_BLACK"));
             Assert.That(state.DiceInventory.Dice[0].Id, Is.EqualTo("DICE_WHITE"));
             Assert.That(state.DiceInventory.Dice[1].Id, Is.EqualTo("DICE_BLACK"));
-            Assert.That(state.DiceInventory.Dice[2].Id, Is.EqualTo("DICE_FIRE"));
+            Assert.That(state.DiceInventory.Dice[2].Id, Is.EqualTo(reward.Id));
+        }
+
+        [Test]
+        public void DiceCatalog_LoadsJsonGeneratedNameFacesColorAndGrade()
+        {
+            GaeBullBing.Core.Dice.DiceCatalog.ClearCache();
+
+            var red = GaeBullBing.Core.Dice.DiceCatalog.GetById("DICE_RED");
+
+            Assert.That(red, Is.Not.Null);
+            Assert.That(red.DisplayName, Is.EqualTo("빨간색 주사위"));
+            Assert.That(red.Faces, Is.EqualTo(new[] { 2, 2, 4, 4, 6, 6 }));
+            Assert.That(red.Grade, Is.EqualTo(GaeBullBing.Core.Data.DiceGrade.Rare));
+            Assert.That(red.Red, Is.EqualTo(0xE6 / 255f).Within(.0001f));
+            Assert.That(red.Green, Is.EqualTo(0x39 / 255f).Within(.0001f));
+            Assert.That(red.Blue, Is.EqualTo(0x46 / 255f).Within(.0001f));
+        }
+
+        [Test]
+        public void DiceReward_SelectsWeightedGradeThenUniformEntryWithinGrade()
+        {
+            GaeBullBing.Core.Dice.DiceCatalog.ClearCache();
+
+            var rareFirst = GaeBullBing.Core.Dice.DiceCatalog.GetRewardForRoll(0, .1f, 0);
+            var rareSecond = GaeBullBing.Core.Dice.DiceCatalog.GetRewardForRoll(0, .1f, 1);
+            var epic = GaeBullBing.Core.Dice.DiceCatalog.GetRewardForRoll(0, .8f, 0);
+            var legendary = GaeBullBing.Core.Dice.DiceCatalog.GetRewardForRoll(0, .98f, 0);
+
+            Assert.That(rareFirst.Id, Is.EqualTo("DICE_RED"));
+            Assert.That(rareSecond.Id, Is.EqualTo("DICE_BLUE"));
+            Assert.That(epic.Id, Is.EqualTo("DICE_ROSE"));
+            Assert.That(legendary.Id, Is.EqualTo("DICE_RUBY"));
+        }
+
+        [Test]
+        public void UpgradeRuntimeDatabase_IncludesJsonEntriesBeyondLegacySceneArray()
+        {
+            var database = Resources.Load<GaeBullBing.Core.Data.TowerUpgradeDatabaseDefinition>(
+                "GaeBullBing/TowerUpgradeDatabase");
+
+            Assert.That(database, Is.Not.Null);
+            Assert.That(database.Upgrades, Has.Length.GreaterThan(32));
+            Assert.That(System.Array.Exists(database.Upgrades,
+                upgrade => upgrade != null && upgrade.Id == "UPG_FIRE_T3_03"), Is.True);
         }
 
 

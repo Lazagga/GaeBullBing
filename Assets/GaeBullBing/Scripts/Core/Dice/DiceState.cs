@@ -1,4 +1,5 @@
 using System;
+using GaeBullBing.Core.Data;
 
 namespace GaeBullBing.Core.Dice
 {
@@ -19,6 +20,14 @@ namespace GaeBullBing.Core.Dice
         public DiceState(string id, string displayName, int[] faces, int[] weights,
             float red, float green, float blue, string passiveDescription,
             string passiveId, float passiveValue)
+            : this(id, displayName, faces, weights, red, green, blue,
+                passiveDescription, passiveId, passiveValue, DiceGrade.Common)
+        {
+        }
+
+        public DiceState(string id, string displayName, int[] faces, int[] weights,
+            float red, float green, float blue, string passiveDescription,
+            string passiveId, float passiveValue, DiceGrade grade)
         {
             if (faces == null || weights == null)
                 throw new ArgumentNullException(faces == null ? nameof(faces) : nameof(weights));
@@ -35,6 +44,7 @@ namespace GaeBullBing.Core.Dice
             PassiveDescription = passiveDescription ?? string.Empty;
             PassiveId = passiveId ?? string.Empty;
             PassiveValue = passiveValue;
+            Grade = grade;
         }
 
         public string Id { get; }
@@ -47,10 +57,11 @@ namespace GaeBullBing.Core.Dice
         public string PassiveDescription { get; }
         public string PassiveId { get; }
         public float PassiveValue { get; }
+        public DiceGrade Grade { get; }
         public bool UsesBlackPips => Id == "DICE_WHITE";
 
         public DiceState Clone() => new DiceState(Id, DisplayName, Faces, Weights,
-            Red, Green, Blue, PassiveDescription, PassiveId, PassiveValue);
+            Red, Green, Blue, PassiveDescription, PassiveId, PassiveValue, Grade);
 
         public void SetWeight(int faceIndex, int weight)
         {

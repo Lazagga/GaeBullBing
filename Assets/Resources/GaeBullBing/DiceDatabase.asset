@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a52ad5aa7fbf08c4f993f8c824d9df7e, type: 3}
+  m_Name: DiceDatabase
+  m_EditorClassIdentifier: GaeBullBing.Core::GaeBullBing.Core.Data.DiceDatabaseDefinition
+  dice:
+  - {fileID: 11400000, guid: 2c738356593e83f4d80c66a261daf364, type: 2}
+  - {fileID: 11400000, guid: 7514322f22daee144ae75ee06b2a1949, type: 2}
+  - {fileID: 11400000, guid: 8d5bd5feae6953e4fa566ddae44253cc, type: 2}
+  - {fileID: 11400000, guid: 704e596b7cf988a44bc9516dbbb8deb7, type: 2}
+  - {fileID: 11400000, guid: fe00c99150d1ac545bf8271d62370a10, type: 2}
+  - {fileID: 11400000, guid: 012e1da4ab5cd35419ff61d41ba43ef5, type: 2}
+  - {fileID: 11400000, guid: 782c7224d9ad07e43a6fee90a981a412, type: 2}
+  - {fileID: 11400000, guid: 91d8b74b87b2017498721891c2407048, type: 2}
+  - {fileID: 11400000, guid: 5943f37ab5796284d84903b47c34ac67, type: 2}
+  - {fileID: 11400000, guid: fd022d1c4474e5a4387523d73a5885d7, type: 2}
+  - {fileID: 11400000, guid: a214dd0b0f6aa9e4ca26e0cca3e4d5cc, type: 2}
+  - {fileID: 11400000, guid: 5a0c6f8f3db132944a7de23cdf0ae1cf, type: 2}
+  - {fileID: 11400000, guid: 47fe00b5ce9d4ac46a30056590a4da6c, type: 2}
+  - {fileID: 11400000, guid: 0d0b0a75e621f8a4a8a4a5da58264a86, type: 2}
+  gradeWeights:
+  - 0
+  - 0
+  - 0.7
+  - 0.25
+  - 0.05

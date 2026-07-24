@@ -19,6 +19,10 @@ namespace GaeBullBing.Editor
         public const string TowerFolder = "Assets/GaeBullBing/Data/Towers";
         public const string UpgradeFolder = "Assets/GaeBullBing/Data/Upgrades";
         public const string BoardAssetPath = "Assets/GaeBullBing/Data/Board.asset";
+        public const string RuntimeUpgradeDatabasePath =
+            "Assets/Resources/GaeBullBing/TowerUpgradeDatabase.asset";
+        public const string RuntimeTowerDatabasePath =
+            "Assets/Resources/GaeBullBing/TowerDatabase.asset";
 
         [MenuItem("GaeBullBing/Data/Import Tiles and Towers JSON")]
         public static void Import()
@@ -27,15 +31,18 @@ namespace GaeBullBing.Editor
             EnsureFolder(TowerFolder);
             EnsureFolder(UpgradeFolder);
             var towers = ImportTowers();
-            ImportUpgrades();
-            ImportTiles(towers);
+            UpdateRuntimeTowerDatabase(towers.Definitions);
+            var upgrades = ImportUpgrades();
+            UpdateRuntimeUpgradeDatabase(upgrades);
+            ImportTiles(towers.Ids);
             AssetDatabase.SaveAssets();
         }
 
-        private static HashSet<string> ImportTowers()
+        private static TowerImportResult ImportTowers()
         {
             var source = ReadJson<TowerDatabaseJson>(TowerJsonPath);
             var ids = new HashSet<string>();
+            var definitions = new List<TowerDefinition>();
             if (source?.tower_database == null)
                 throw new InvalidOperationException("tower_database 배열이 없습니다.");
 
@@ -65,14 +72,41 @@ namespace GaeBullBing.Editor
                 serialized.ApplyModifiedPropertiesWithoutUndo();
                 definition.name = item.id;
                 EditorUtility.SetDirty(definition);
+                definitions.Add(definition);
             }
-            return ids;
+            return new TowerImportResult(ids, definitions);
         }
 
-        private static void ImportUpgrades()
+        private static void UpdateRuntimeTowerDatabase(
+            IReadOnlyList<TowerDefinition> definitions)
+        {
+            var directory = Path.GetDirectoryName(RuntimeTowerDatabasePath);
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+                AssetDatabase.Refresh();
+            }
+            var database = AssetDatabase.LoadAssetAtPath<TowerDatabaseDefinition>(
+                RuntimeTowerDatabasePath);
+            if (database == null)
+            {
+                database = ScriptableObject.CreateInstance<TowerDatabaseDefinition>();
+                AssetDatabase.CreateAsset(database, RuntimeTowerDatabasePath);
+            }
+            var serialized = new SerializedObject(database);
+            var towers = serialized.FindProperty("towers");
+            towers.arraySize = definitions.Count;
+            for (var index = 0; index < definitions.Count; index++)
+                towers.GetArrayElementAtIndex(index).objectReferenceValue = definitions[index];
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(database);
+        }
+
+        private static List<TowerUpgradeDefinition> ImportUpgrades()
         {
             var source = ReadJson<UpgradeDatabaseJson>(UpgradeJsonPath);
             var ids = new HashSet<string>();
+            var definitions = new List<TowerUpgradeDefinition>();
             if (source?.tower_upgrade_database == null)
                 throw new InvalidOperationException("tower_upgrade_database is missing.");
             foreach (var item in source.tower_upgrade_database)
@@ -111,7 +145,34 @@ namespace GaeBullBing.Editor
                 serialized.ApplyModifiedPropertiesWithoutUndo();
                 definition.name = item.id;
                 EditorUtility.SetDirty(definition);
+                definitions.Add(definition);
             }
+            return definitions;
+        }
+
+        private static void UpdateRuntimeUpgradeDatabase(
+            IReadOnlyList<TowerUpgradeDefinition> definitions)
+        {
+            var directory = Path.GetDirectoryName(RuntimeUpgradeDatabasePath);
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+                AssetDatabase.Refresh();
+            }
+            var database = AssetDatabase.LoadAssetAtPath<TowerUpgradeDatabaseDefinition>(
+                RuntimeUpgradeDatabasePath);
+            if (database == null)
+            {
+                database = ScriptableObject.CreateInstance<TowerUpgradeDatabaseDefinition>();
+                AssetDatabase.CreateAsset(database, RuntimeUpgradeDatabasePath);
+            }
+            var serialized = new SerializedObject(database);
+            var property = serialized.FindProperty("upgrades");
+            property.arraySize = definitions.Count;
+            for (var index = 0; index < definitions.Count; index++)
+                property.GetArrayElementAtIndex(index).objectReferenceValue = definitions[index];
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(database);
         }
 
         private static void SetStringArray(SerializedProperty property, string[] values)
@@ -228,6 +289,16 @@ namespace GaeBullBing.Editor
         [Serializable] private sealed class TileDatabaseJson { public TileJson[] tile_definitions; public PlacementJson[] board_layout; }
         [Serializable] private sealed class TileJson { public string id; public string name; public string type; public string element; public string build_tower_id; }
         [Serializable] private sealed class PlacementJson { public int index; public string tile_id; }
+        private readonly struct TowerImportResult
+        {
+            public TowerImportResult(HashSet<string> ids, List<TowerDefinition> definitions)
+            {
+                Ids = ids;
+                Definitions = definitions;
+            }
+            public HashSet<string> Ids { get; }
+            public List<TowerDefinition> Definitions { get; }
+        }
     }
 
     public sealed class TileTowerJsonAssetPostprocessor : AssetPostprocessor

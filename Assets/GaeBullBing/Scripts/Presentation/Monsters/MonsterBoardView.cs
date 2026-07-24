@@ -12,6 +12,8 @@ namespace GaeBullBing.Presentation.Monsters
         [SerializeField, Min(0.01f)] private float stepDuration = 0.18f;
         [SerializeField, Min(0f)] private float hopHeight = 0.18f;
         [SerializeField] private Vector3 positionOffset = new(0f, 0.22f, 0f);
+        [SerializeField, Min(.05f)] private float spawnEntranceDuration = .45f;
+        [SerializeField, Min(.5f)] private float spawnEntranceHeight = 3.2f;
 
         private BoardTilemapView boardView;
         private SpriteRenderer spriteRenderer;
@@ -22,6 +24,7 @@ namespace GaeBullBing.Presentation.Monsters
         private int hitFlashCount;
 private SpriteRenderer healthFillRenderer;
         private BoardCharacterShadow shadow;
+        private HoverMarkerView positionMarker;
         private Transform healthFill;
         private Coroutine layoutRoutine;
         private bool isMoving;
@@ -75,6 +78,12 @@ private SpriteRenderer healthFillRenderer;
             statusIndicator = gameObject.AddComponent<MonsterStatusIndicatorView>();
             statusIndicator.Initialize();
             statusIndicator.SetLocalPosition(new Vector3(0f, healthBarY + .11f, 0f));
+            if (isBoss)
+                positionMarker = HoverMarkerView.Create(
+                    transform,
+                    new Vector3(0f, healthBarY + .42f, 0f),
+                    new Color(.86f, .2f, 1f, 1f),
+                    spriteRenderer != null ? spriteRenderer.sortingLayerID : 0);
         }
 
         public void SetLayoutOffset(Vector3 offset)
@@ -116,6 +125,62 @@ private SpriteRenderer healthFillRenderer;
             statusIndicator?.SetVisible(visible);
 if (healthFillRenderer != null) healthFillRenderer.enabled = visible;
             shadow?.SetVisible(visible);
+            if (positionMarker != null) positionMarker.gameObject.SetActive(visible);
+        }
+
+        public void PrepareSpawnEntrance()
+        {
+            if (!isBoss || boardView == null) return;
+            isMoving = true;
+            ApplyBossEntranceDirection();
+            SetSpawnDetailsVisible(false);
+            if (spriteRenderer != null)
+            {
+                var color = monsterBaseColor;
+                color.a = 0f;
+                spriteRenderer.color = color;
+            }
+            transitionOffset = Vector3.up * spawnEntranceHeight;
+            transform.position = GetStandingPosition(CurrentTileIndex);
+            shadowGroundPosition = GetShadowPosition(CurrentTileIndex);
+        }
+
+        public IEnumerator PlaySpawnEntrance()
+        {
+            if (!isBoss || boardView == null) yield break;
+            var startOffset = transitionOffset;
+            for (var elapsed = 0f; elapsed < spawnEntranceDuration; elapsed += Time.deltaTime)
+            {
+                var progress = Mathf.Clamp01(elapsed / spawnEntranceDuration);
+                var smooth = Mathf.SmoothStep(0f, 1f, progress);
+                transitionOffset = Vector3.Lerp(startOffset, Vector3.zero, smooth);
+                transform.position = GetStandingPosition(CurrentTileIndex);
+                shadowGroundPosition = GetShadowPosition(CurrentTileIndex);
+                if (spriteRenderer != null)
+                {
+                    var color = monsterBaseColor;
+                    color.a = Mathf.Clamp01(smooth * 3f);
+                    spriteRenderer.color = color;
+                }
+                yield return null;
+            }
+
+            transitionOffset = Vector3.zero;
+            transform.position = GetStandingPosition(CurrentTileIndex);
+            if (spriteRenderer != null) spriteRenderer.color = monsterBaseColor;
+            boardView.PlayPress(CurrentTileIndex);
+            for (var elapsed = 0f; elapsed < boardView.PressPulseDuration; elapsed += Time.deltaTime)
+            {
+                transform.position = GetStandingPosition(CurrentTileIndex);
+                shadowGroundPosition = GetShadowPosition(CurrentTileIndex);
+                yield return null;
+            }
+
+            ApplyBossDirection(CurrentTileIndex, false);
+            transform.position = GetStandingPosition(CurrentTileIndex);
+            shadowGroundPosition = GetShadowPosition(CurrentTileIndex);
+            isMoving = false;
+            SetSpawnDetailsVisible(true);
         }
 
         private void LateUpdate()
@@ -202,6 +267,7 @@ public void UpdateStatus(MonsterState state)
 
         public IEnumerator MoveFlying(int startTileIndex, int distance, bool reachedBase)
         {
+            transitionOffset = Vector3.zero;
             if (distance <= 0)
             {
                 isMoving = false;
@@ -314,6 +380,21 @@ public void UpdateStatus(MonsterState state)
                 ? showBack ? flyingBackSprite : flyingFrontSprite
                 : showBack ? backSprite : frontSprite;
             spriteRenderer.flipX = line == 1 || line == 2;
+        }
+
+        private void ApplyBossEntranceDirection()
+        {
+            const int thirdLineStartTile = 27;
+            ApplyBossDirection(thirdLineStartTile, true);
+        }
+
+        private void SetSpawnDetailsVisible(bool visible)
+        {
+            if (healthBackgroundRenderer != null) healthBackgroundRenderer.enabled = visible;
+            if (healthFillRenderer != null) healthFillRenderer.enabled = visible;
+            statusIndicator?.SetVisible(visible);
+            shadow?.SetVisible(visible);
+            if (positionMarker != null) positionMarker.gameObject.SetActive(visible);
         }
 
 public IEnumerator PlayHit()

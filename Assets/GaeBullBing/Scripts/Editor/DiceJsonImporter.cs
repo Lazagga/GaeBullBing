@@ -11,6 +11,8 @@ namespace GaeBullBing.Editor
     {
         public const string JsonPath = "Assets/GaeBullBing/Data/Json/Dice.json";
         public const string OutputFolder = "Assets/GaeBullBing/Data/Dice";
+        public const string RuntimeDatabasePath =
+            "Assets/Resources/GaeBullBing/DiceDatabase.asset";
 
         [MenuItem("GaeBullBing/Data/Import Dice JSON")]
         public static void Import()
@@ -25,6 +27,7 @@ namespace GaeBullBing.Editor
 
             EnsureFolder();
             var importedIds = new HashSet<string>();
+            var importedDefinitions = new List<DiceDefinition>();
             foreach (var source in database.dice)
             {
                 Validate(source, importedIds);
@@ -43,9 +46,13 @@ namespace GaeBullBing.Editor
                 serialized.ApplyModifiedPropertiesWithoutUndo();
                 definition.name = source.id;
                 EditorUtility.SetDirty(definition);
+                importedDefinitions.Add(definition);
             }
 
+            var weights = ParseGradeWeights(database.metadata);
+            UpdateRuntimeDatabase(importedDefinitions, weights);
             AssetDatabase.SaveAssets();
+            GaeBullBing.Core.Dice.DiceCatalog.ClearCache();
             Debug.Log($"주사위 JSON 임포트 완료: {database.dice.Length}개 갱신");
         }
 
@@ -83,6 +90,58 @@ namespace GaeBullBing.Editor
             AssetDatabase.Refresh();
         }
 
+        private static float[] ParseGradeWeights(DiceMetadataJson[] metadata)
+        {
+            var source = metadata != null && metadata.Length > 0 ? metadata[0]?.weight : null;
+            if (source == null)
+                throw new InvalidOperationException("metadata[0].weight가 없습니다.");
+            var result = new float[Enum.GetValues(typeof(DiceGrade)).Length];
+            result[(int)DiceGrade.Common] = source.Common;
+            result[(int)DiceGrade.Uncommon] = source.Uncommon;
+            result[(int)DiceGrade.Rare] = source.Rare;
+            result[(int)DiceGrade.Epic] = source.Epic;
+            result[(int)DiceGrade.Legendary] = source.Legendary;
+            var total = 0f;
+            foreach (var weight in result)
+            {
+                if (weight < 0f) throw new InvalidOperationException("주사위 등급 weight는 음수일 수 없습니다.");
+                total += weight;
+            }
+            if (total <= 0f) throw new InvalidOperationException("주사위 등급 weight 합계가 0입니다.");
+            return result;
+        }
+
+        private static void UpdateRuntimeDatabase(
+            IReadOnlyList<DiceDefinition> definitions,
+            IReadOnlyList<float> gradeWeights)
+        {
+            var directory = Path.GetDirectoryName(RuntimeDatabasePath);
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+                AssetDatabase.Refresh();
+            }
+
+            var database = AssetDatabase.LoadAssetAtPath<DiceDatabaseDefinition>(RuntimeDatabasePath);
+            if (database == null)
+            {
+                database = ScriptableObject.CreateInstance<DiceDatabaseDefinition>();
+                AssetDatabase.CreateAsset(database, RuntimeDatabasePath);
+            }
+
+            var serialized = new SerializedObject(database);
+            var diceProperty = serialized.FindProperty("dice");
+            diceProperty.arraySize = definitions.Count;
+            for (var index = 0; index < definitions.Count; index++)
+                diceProperty.GetArrayElementAtIndex(index).objectReferenceValue = definitions[index];
+            var weightProperty = serialized.FindProperty("gradeWeights");
+            weightProperty.arraySize = gradeWeights.Count;
+            for (var index = 0; index < gradeWeights.Count; index++)
+                weightProperty.GetArrayElementAtIndex(index).floatValue = gradeWeights[index];
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(database);
+        }
+
         private static void SetFaces(SerializedProperty property, int[] faces)
         {
             property.arraySize = faces.Length;
@@ -93,7 +152,21 @@ namespace GaeBullBing.Editor
         [Serializable]
         private sealed class DiceDatabaseJson
         {
+            public DiceMetadataJson[] metadata;
             public DiceJson[] dice;
+        }
+
+        [Serializable]
+        private sealed class DiceMetadataJson { public DiceWeightJson weight; }
+
+        [Serializable]
+        private sealed class DiceWeightJson
+        {
+            public float Common;
+            public float Uncommon;
+            public float Rare;
+            public float Epic;
+            public float Legendary;
         }
 
         [Serializable]

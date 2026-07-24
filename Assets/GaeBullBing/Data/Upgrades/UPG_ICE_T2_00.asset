@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: GaeBullBing.Core::GaeBullBing.Core.Data.TowerUpgradeDefinition
   id: UPG_ICE_T2_00
   displayName: "TOW_02_\uC5BC\uC74C_T2_00"
-  description: "\uACF5\uACA9 \uB300\uC0C1\uC774 1\uD134\uB3D9\uC548 \uBE59\uACB0\uB429\uB2C8\uB2E4."
+  description: "\uACF5\uACA9 \uD69F\uC218\uAC00 3\uBC30 \uC99D\uAC00\uD569\uB2C8\uB2E4."
   element: 2
   tier: 2
   weight: 1
@@ -22,6 +22,7 @@ MonoBehaviour:
   - Stat: damage
     Operation: add
     Value: 15
-  effects:
-  - Id: freeze
-    Value: 1
+  - Stat: attack_count
+    Operation: Multiply
+    Value: 3
+  effects: []

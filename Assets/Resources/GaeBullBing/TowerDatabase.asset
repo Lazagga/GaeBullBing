@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 062145fa1641b474793d66af8e46b7f3, type: 3}
+  m_Name: TowerDatabase
+  m_EditorClassIdentifier: GaeBullBing.Core::GaeBullBing.Core.Data.TowerDatabaseDefinition
+  towers:
+  - {fileID: 11400000, guid: e15d0f909f8730e4587c495866b6ac90, type: 2}
+  - {fileID: 11400000, guid: e8e59196032f53449b3a6f163f7ad313, type: 2}
+  - {fileID: 11400000, guid: 1c972c0bb5b8a654994091d646ac7197, type: 2}
+  - {fileID: 11400000, guid: 5f6ec11bb6498f741ac8d11d10bea025, type: 2}

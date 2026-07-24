@@ -24,6 +24,7 @@ namespace GaeBullBing.Presentation.Board
         private BoardState currentBoardState;
 
         public Tilemap Tilemap => tilemap != null ? tilemap : tilemap = GetComponent<Tilemap>();
+        public float PressPulseDuration => playerPressDuration * 2f;
 
         private void Awake()
         {

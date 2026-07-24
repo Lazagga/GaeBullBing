@@ -15,6 +15,7 @@ namespace GaeBullBing.Presentation.Board
         private BoardTilemapView boardView;
         private SpriteRenderer visualRenderer;
         private BoardCharacterShadow shadow;
+        private HoverMarkerView positionMarker;
         private int currentTileIndex;
         private Coroutine layoutRoutine;
         private bool isMoving;
@@ -51,6 +52,18 @@ namespace GaeBullBing.Presentation.Board
             if (shadow == null)
                 shadow = BoardCharacterShadow.Create(transform,
                     visualRenderer != null ? visualRenderer.sortingLayerID : 0);
+            if (positionMarker == null)
+            {
+                var markerY = visualRenderer != null && visualRenderer.sprite != null
+                    ? visualRenderer.sprite.bounds.max.y *
+                      visualRenderer.transform.localScale.y + .26f
+                    : .75f;
+                positionMarker = HoverMarkerView.Create(
+                    transform,
+                    new Vector3(0f, markerY, 0f),
+                    new Color(1f, .85f, .12f, 1f),
+                    visualRenderer != null ? visualRenderer.sortingLayerID : 0);
+            }
         }
 
         private void LateUpdate()

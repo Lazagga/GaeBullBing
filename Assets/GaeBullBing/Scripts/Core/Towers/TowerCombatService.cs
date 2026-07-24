@@ -106,10 +106,10 @@ namespace GaeBullBing.Core.Towers
                 var cooldownBlocked = tower.AttackCooldownRounds > 0;
                 if (cooldownBlocked) tower.AttackCooldownRounds--;
                 if (tower.IsFeatherSealed || cooldownBlocked) continue;
-                if (HasEffect(tower, TowerEffectCatalog.Wall, "UPG_PHYSICS_T3_00") ||
-                    HasEffect(tower, TowerEffectCatalog.LineTowerBuff, "UPG_PHYSICS_T2_03"))
+                if (HasEffect(tower, TowerEffectCatalog.Wall) ||
+                    HasEffect(tower, TowerEffectCatalog.LineTowerBuff))
                     continue;
-                if (HasEffect(tower, TowerEffectCatalog.RollingStone, "UPG_PHYSICS_T2_00") && !tower.StoneActive)
+                if (HasEffect(tower, TowerEffectCatalog.RollingStone) && !tower.StoneActive)
                 {
                     tower.StoneActive = true;
                     tower.StoneTileIndex = tile.Index;
@@ -120,7 +120,7 @@ namespace GaeBullBing.Core.Towers
                     FinishTowerAttack(tower);
                     continue;
                 }
-                if (HasEffect(tower, TowerEffectCatalog.ChainLine, "UPG_ELECTRIC_T3_00"))
+                if (HasEffect(tower, TowerEffectCatalog.ChainLine))
                 {
                     var resultCountBeforeAttack = results.Count;
                     for (var attack = 0; attack < Math.Max(1, stats.AttackCount + tower.BonusAttackCount); attack++)
@@ -132,7 +132,7 @@ namespace GaeBullBing.Core.Towers
                     }
                     continue;
                 }
-                if (HasEffect(tower, TowerEffectCatalog.ChainLightning, "UPG_ELECTRIC_T3_01"))
+                if (HasEffect(tower, TowerEffectCatalog.ChainLightning))
                 {
                     var resultCountBeforeAttack = results.Count;
                     ResolveRandomElectric(state, tile, stats.Damage,
@@ -147,11 +147,11 @@ namespace GaeBullBing.Core.Towers
                 var resultCountBeforeNormalAttack = results.Count;
                 for (var attack = 0; attack < Math.Max(1, stats.AttackCount+tower.BonusAttackCount); attack++)
                 {
-                    if (HasEffect(tower, TowerEffectCatalog.Explode, "UPG_FIRE_T2_00"))
+                    if (HasEffect(tower, TowerEffectCatalog.Explode))
                         ResolveExplodeAttack(state, tile, stats, results);
-                    else if (HasEffect(tower, "range_attack", "UPG_ICE_T3_00"))
+                    else if (HasEffect(tower, TowerEffectCatalog.RangeAttack))
                         ResolveRangeAttack(state, tile, stats, results);
-                    else if (HasEffect(tower, "aoe_tile", "UPG_FIRE_T2_03", "UPG_ICE_T2_03"))
+                    else if (HasEffect(tower, TowerEffectCatalog.AreaTile))
                         ResolveTileAreaAttack(state, tile, stats, results);
                     else
                         ResolveTowerAttack(state,tile,stats,results);
@@ -167,7 +167,7 @@ namespace GaeBullBing.Core.Towers
 
         private static void FinishTowerAttack(TowerState tower)
         {
-            if (HasEffect(tower, TowerEffectCatalog.Cooldown, "UPG_PHYSICS_T2_01"))
+            if (HasEffect(tower, TowerEffectCatalog.Cooldown))
                 tower.AttackCooldownRounds = Math.Max(1,
                     (int)Math.Round(tower.GetEffectValue(TowerEffectCatalog.Cooldown, 2f)));
             if (tower.BonusAttackTurnsRemaining <= 0) return;
@@ -213,7 +213,7 @@ namespace GaeBullBing.Core.Towers
             int firstResultIndex,
             TowerState source)
         {
-            if (!HasEffect(source, TowerEffectCatalog.TowerBuff, "UPG_ELECTRIC_T2_01")) return;
+            if (!HasEffect(source, TowerEffectCatalog.TowerBuff)) return;
             var bonus = Math.Max(1, (int)Math.Round(
                 source.GetEffectValue(TowerEffectCatalog.TowerBuff, 1f)));
             var affectedTiles = new HashSet<int>();
@@ -370,12 +370,8 @@ namespace GaeBullBing.Core.Towers
                     targetTileIndex: tileIndex, visualKind: TowerAttackVisualKind.AreaTile));
         }
 
-        private static bool HasEffect(TowerState tower, string effectId, params string[] legacyUpgradeIds)
-        {
-            // Runtime behavior is defined exclusively by effect_ids. Upgrade IDs must
-            // remain freely reusable when designers rearrange effects in JSON.
-            return tower.AppliedEffectIds.Contains(effectId);
-        }
+        private static bool HasEffect(TowerState tower, string effectId) =>
+            tower != null && tower.HasEffect(effectId);
 
         private static int CompareTargets(
             TowerState tower,

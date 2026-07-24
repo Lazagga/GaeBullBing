@@ -14,9 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: GaeBullBing.Core::GaeBullBing.Core.Data.TowerUpgradeDefinition
   id: UPG_FIRE_T3_01
   displayName: "TOW_01_\uBD88_T3_01"
-  description: "\uD654\uC0C1 \uC911\uCCA9\uC774 10 \uC774\uC0C1\uC778 \uBAAC\uC2A4\uD130\uB97C
-    \uACF5\uACA9\uD588\uC744 \uACBD\uC6B0, \uD3ED\uBC1C\uD558\uBA70 \uD53C\uD574\uB97C
-    \uC785\uD799\uB2C8\uB2E4."
+  description: "\uD53C\uD574\uB97C \uC785\uD78C \uD0C0\uC77C\uC5D0 1\uD134\uAC04
+    \uBD88\uC744 \uBD99\uC785\uB2C8\uB2E4. (\uBC1F\uC744 \uB54C\uB9C8\uB2E4 \uD654\uC0C1
+    \uD53C\uD574\uAC00 \uD55C\uBC88 \uB354 \uBC1C\uB3D9\uD558\uBA70 \uD654\uC0C1
+    1\uC911\uCCA9 \uCD94\uAC00)"
   element: 1
   tier: 3
   weight: 1
@@ -25,5 +26,5 @@ MonoBehaviour:
     Operation: add
     Value: 20
   effects:
-  - Id: burn_explode
+  - Id: tile_burn
     Value: 1

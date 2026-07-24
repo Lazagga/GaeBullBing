@@ -12,6 +12,8 @@ namespace GaeBullBing.Editor
     {
         public const string JsonPath = "Assets/GaeBullBing/Data/Json/Monster.json";
         public const string OutputFolder = "Assets/GaeBullBing/Data/Monsters";
+        public const string RuntimeDatabasePath =
+            "Assets/Resources/GaeBullBing/MonsterDatabase.asset";
 
         [MenuItem("GaeBullBing/Data/Import Monsters JSON")]
         public static void Import()
@@ -33,6 +35,7 @@ namespace GaeBullBing.Editor
             EnsureOutputFolder();
             var existingAssets = FindExistingAssets();
             var importedIds = new HashSet<string>();
+            var importedDefinitions = new List<MonsterDefinition>();
             var importedCount = 0;
 
             foreach (var source in database.monster_database)
@@ -68,9 +71,11 @@ namespace GaeBullBing.Editor
 
                 definition.name = $"{source.id}_{SanitizeFileName(source.name)}";
                 EditorUtility.SetDirty(definition);
+                importedDefinitions.Add(definition);
                 importedCount++;
             }
 
+            UpdateRuntimeDatabase(importedDefinitions);
             AssetDatabase.SaveAssets();
             Debug.Log($"Monster JSON 임포트 완료: {importedCount}개 갱신");
         }
@@ -117,6 +122,30 @@ namespace GaeBullBing.Editor
         {
             if (!AssetDatabase.IsValidFolder(OutputFolder))
                 Directory.CreateDirectory(OutputFolder);
+        }
+
+        private static void UpdateRuntimeDatabase(IReadOnlyList<MonsterDefinition> definitions)
+        {
+            var directory = Path.GetDirectoryName(RuntimeDatabasePath);
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+                AssetDatabase.Refresh();
+            }
+            var database = AssetDatabase.LoadAssetAtPath<MonsterDatabaseDefinition>(
+                RuntimeDatabasePath);
+            if (database == null)
+            {
+                database = ScriptableObject.CreateInstance<MonsterDatabaseDefinition>();
+                AssetDatabase.CreateAsset(database, RuntimeDatabasePath);
+            }
+            var serialized = new SerializedObject(database);
+            var monsters = serialized.FindProperty("monsters");
+            monsters.arraySize = definitions.Count;
+            for (var index = 0; index < definitions.Count; index++)
+                monsters.GetArrayElementAtIndex(index).objectReferenceValue = definitions[index];
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(database);
         }
 
         private static void SetStringArray(SerializedProperty property, string[] values)

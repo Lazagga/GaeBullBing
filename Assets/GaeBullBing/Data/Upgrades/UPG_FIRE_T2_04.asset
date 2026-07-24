@@ -14,8 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: GaeBullBing.Core::GaeBullBing.Core.Data.TowerUpgradeDefinition
   id: UPG_FIRE_T2_04
   displayName: "TOW_01_\uBD88_T2_04"
-  description: "\uD53C\uD574\uB97C \uC785\uD78C \uBAAC\uC2A4\uD130\uC758 \uD654\uC0C1
-    \uC911\uCCA9\uC744 \uB450 \uBC30\uB85C \uB9CC\uB4ED\uB2C8\uB2E4."
+  description: "\uB450 \uBA85\uC758 \uB300\uC0C1\uC744 \uCD94\uAC00\uB85C \uACF5\uACA9\uD569\uB2C8\uB2E4."
   element: 1
   tier: 2
   weight: 1
@@ -23,6 +22,7 @@ MonoBehaviour:
   - Stat: damage
     Operation: add
     Value: 10
-  effects:
-  - Id: double_burn
-    Value: 1
+  - Stat: target_count
+    Operation: add
+    Value: 2
+  effects: []

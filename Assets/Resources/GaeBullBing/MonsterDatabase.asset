@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 08341ddfd2c2a18479a051761e0af048, type: 3}
+  m_Name: MonsterDatabase
+  m_EditorClassIdentifier: GaeBullBing.Core::GaeBullBing.Core.Data.MonsterDatabaseDefinition
+  monsters:
+  - {fileID: 11400000, guid: a2adcf4f8d7bfa04bbb371b758cc7774, type: 2}
+  - {fileID: 11400000, guid: 23fb9a867fbdc324b99573816fc5c297, type: 2}
+  - {fileID: 11400000, guid: 849fb7b68c89d984695aa6e2272f02b6, type: 2}
+  - {fileID: 11400000, guid: edceeb1964c1b8442b624dc8eb80312a, type: 2}
